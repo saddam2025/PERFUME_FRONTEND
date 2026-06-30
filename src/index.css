@@ -1,0 +1,79 @@
+@import "tailwindcss";
+
+@import url("https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=Inter:wght@400;500;600;700&family=Tajawal:wght@400;500;700;800&display=swap");
+
+@theme {
+  /* Color tokens */
+  --color-ink: #0e0e10;
+  --color-paper: #fafaf9;
+  --color-paper-dim: #f1efeb;
+  --color-slate: #5c5f66;
+  --color-slate-light: #9a9ca1;
+  --color-line: #e4e3e0;
+  --color-line-dark: #2a2a2c;
+  --color-accent: #b8a88a;
+  --color-accent-deep: #8c7a56;
+
+  /* Type tokens */
+  --font-display: "Archivo", "Tajawal", sans-serif;
+  --font-body: "Inter", "Tajawal", sans-serif;
+  --font-arabic: "Tajawal", "Inter", sans-serif;
+
+  --tracking-tightest: -0.04em;
+  --tracking-wide-label: 0.14em;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  html[lang="ar"] body {
+    font-family: var(--font-arabic);
+  }
+
+  html[lang="ar"] .font-display {
+    font-family: var(--font-arabic);
+    letter-spacing: 0;
+  }
+
+  /* Visible keyboard focus everywhere */
+  :focus-visible {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 3px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer utilities {
+  .label-tracked {
+    font-family: var(--font-body);
+    letter-spacing: var(--tracking-wide-label);
+    text-transform: uppercase;
+    font-size: 0.6875rem;
+    font-weight: 600;
+  }
+
+  html[lang="ar"] .label-tracked {
+    font-family: var(--font-arabic);
+    letter-spacing: 0;
+    text-transform: none;
+  }
+}
