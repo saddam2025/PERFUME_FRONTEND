@@ -24,10 +24,10 @@ import UserProfile from "./pages/UserProfile";
 
 function App() {
   return (
-    <LanguageProvider>
-      <AuthProvider>
-        <CartProvider>
-          <BrowserRouter>
+    <BrowserRouter>
+      <LanguageProvider>
+        <AuthProvider>
+          <CartProvider>
             <Routes>
               <Route element={<Layout />}>
                 <Route path="/" element={<Home />} />
@@ -50,10 +50,10 @@ function App() {
                 <Route path="/return-policy" element={<ReturnPolicy />} />
               </Route>
             </Routes>
-          </BrowserRouter>
-        </CartProvider>
-      </AuthProvider>
-    </LanguageProvider>
+          </CartProvider>
+        </AuthProvider>
+      </LanguageProvider>
+    </BrowserRouter>
   );
 }
 

@@ -17,22 +17,22 @@ export default function Contact() {
     <div className="mx-auto max-w-xl px-4 py-16 sm:px-6" dir={locale === "ar" ? "rtl" : "ltr"}>
       <div className="border border-line bg-paper p-6 sm:p-8">
         <h1 className="font-display text-xl font-bold uppercase tracking-wider text-ink mb-2">
-          {locale === "ar" ? "تواصل معنا" : "Contact Us"}
+          {t("contact.title")}
         </h1>
         <p className="text-xs text-slate mb-6">
-          {t("contact.body") || (locale === "ar" ? "راسلنا وسيرد عليك أحد مستشارينا في أقرب وقت." : "Drop us a message and our team will get back to you shortly.")}
+          {t("contact.body")}
         </p>
 
         {submitted && (
           <div className="mb-4 border border-green-200 bg-green-50 p-3 text-xs text-green-700 font-medium text-center">
-            {locale === "ar" ? "تم إرسال رسالتك بنجاح! شكراً لك." : "Your message has been sent successfully! Thank you."}
+            {t("contact.successMessage")}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-xs uppercase font-semibold text-slate mb-1">
-              {t("contact.fullName") || (locale === "ar" ? "الاسم بالكامل" : "Full Name")}
+              {t("contact.fullName")}
             </label>
             <input
               type="text"
@@ -45,7 +45,7 @@ export default function Contact() {
 
           <div>
             <label className="block text-xs uppercase font-semibold text-slate mb-1">
-              {t("contact.email") || (locale === "ar" ? "البريد الإلكتروني" : "Email Address")}
+              {t("contact.email")}
             </label>
             <input
               type="email"
@@ -58,7 +58,7 @@ export default function Contact() {
 
           <div>
             <label className="block text-xs uppercase font-semibold text-slate mb-1">
-              {t("contact.message") || (locale === "ar" ? "الرسالة" : "Message")}
+              {t("contact.message")}
             </label>
             <textarea
               rows="4"
@@ -73,13 +73,13 @@ export default function Contact() {
             type="submit"
             className="w-full bg-ink text-paper py-2.5 text-xs font-bold uppercase tracking-wider hover:opacity-90 transition-opacity"
           >
-            {t("contact.send") || (locale === "ar" ? "إرسال الرسالة" : "Send Message")}
+            {t("contact.send")}
           </button>
         </form>
 
         <div className="mt-8 pt-6 border-t border-line text-xs text-slate space-y-1">
-          <p><strong>Email:</strong> support@toronto.com</p>
-          <p><strong>HQ:</strong> New Cairo, Egypt</p>
+          <p><strong>{t("contact.emailInfoLabel")}</strong> support@toronto.com</p>
+          <p><strong>{t("contact.hqInfoLabel")}</strong> {t("contact.hqValue")}</p>
         </div>
       </div>
     </div>

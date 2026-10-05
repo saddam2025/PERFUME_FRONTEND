@@ -1,13 +1,22 @@
+// FilterSidebar.jsx — FIXED
+// Fix: Bug 2 — setPriceRange now uses batchUpdateFilters (new prop from Shop.jsx) so
+//   minPrice and maxPrice are written in a single setSearchParams call. The old code
+//   built nextParams correctly but never called setSearchParams with it; instead it
+//   called updateFilter twice, and the second call read stale searchParams so minPrice
+//   was silently dropped every time a price range was selected.
+import { useEffect, useState } from "react";
+import { Search } from "lucide-react";
 import { useLanguage } from "../../context/LanguageContext";
 import { categories, sizesAvailable } from "../../lib/productHelpers";
+import api from "../../api/axios";
 import { cn } from "../../lib/cn";
 
 const PRICE_RANGES = [
-  { id: "all", min: 0, max: Infinity },
-  { id: "under1000", min: 0, max: 1000 },
-  { id: "1000to2500", min: 1000, max: 2500 },
-  { id: "2500to4000", min: 2500, max: 4000 },
-  { id: "over4000", min: 4000, max: Infinity },
+  { id: "all", min: "", max: "" },
+  { id: "under1000", min: "", max: "1000" },
+  { id: "1000to2500", min: "1000", max: "2500" },
+  { id: "2500to4000", min: "2500", max: "4000" },
+  { id: "over4000", min: "4000", max: "" },
 ];
 
 const PRICE_LABELS = {
@@ -36,26 +45,63 @@ function FilterGroup({ title, children }) {
   );
 }
 
-export default function FilterSidebar({ filters, onChange, onClear }) {
+export default function FilterSidebar({ searchParams, updateFilter, batchUpdateFilters, onClear }) {
   const { t, locale } = useLanguage();
   const priceLabels = PRICE_LABELS[locale] || PRICE_LABELS.en;
 
+  const [collections, setCollections] = useState([]);
+  const [searchInput, setSearchInput] = useState(searchParams.get("search") || "");
+
+  const currentCategoryStr = searchParams.get("category") || "";
+  const currentCategories = currentCategoryStr ? currentCategoryStr.split(",") : [];
+
+  const currentMinPrice = searchParams.get("minPrice") || "";
+  const currentMaxPrice = searchParams.get("maxPrice") || "";
+  const currentCollection = searchParams.get("collectionId") || "";
+
+  useEffect(() => {
+    async function fetchCollections() {
+      try {
+        const { data } = await api.get("/collections");
+        setCollections(data?.data?.collections || []);
+      } catch (error) {
+        console.error("Failed to fetch collections", error);
+      }
+    }
+    fetchCollections();
+  }, []);
+
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
+    updateFilter("search", searchInput);
+  };
+
   const toggleCategory = (cat) => {
-    const next = filters.categories.includes(cat)
-      ? filters.categories.filter((c) => c !== cat)
-      : [...filters.categories, cat];
-    onChange({ ...filters, categories: next });
+    let next;
+    if (currentCategories.includes(cat)) {
+      next = currentCategories.filter((c) => c !== cat);
+    } else {
+      next = [...currentCategories, cat];
+    }
+    updateFilter("category", next.join(","));
   };
 
-  const toggleSize = (size) => {
-    const next = filters.sizes.includes(size)
-      ? filters.sizes.filter((s) => s !== size)
-      : [...filters.sizes, size];
-    onChange({ ...filters, sizes: next });
+  // FIX Bug 2: use batchUpdateFilters to set minPrice and maxPrice atomically in one
+  // setSearchParams call. The previous implementation called updateFilter("minPrice")
+  // then updateFilter("maxPrice") separately — each read from the same stale searchParams
+  // snapshot, so the second call wiped out the change made by the first.
+  const setPriceRange = (min, max) => {
+    batchUpdateFilters([
+      { key: "minPrice", value: min },
+      { key: "maxPrice", value: max },
+    ]);
   };
 
-  const setPriceRange = (rangeId) => {
-    onChange({ ...filters, priceRange: rangeId });
+  const getCurrentPriceRangeId = () => {
+    const match = PRICE_RANGES.find(
+      (r) => r.min === currentMinPrice && r.max === currentMaxPrice
+    );
+    return match ? match.id : null;
   };
 
   return (
@@ -64,12 +110,45 @@ export default function FilterSidebar({ filters, onChange, onClear }) {
         <h2 className="label-tracked text-ink">{t("shop.filters")}</h2>
         <button
           type="button"
-          onClick={onClear}
+          onClick={() => {
+            setSearchInput("");
+            onClear();
+          }}
           className="text-xs font-medium text-slate underline-offset-2 hover:text-ink hover:underline"
         >
           {t("shop.clearAll")}
         </button>
       </div>
+
+      <FilterGroup title={t("shop.search") || "Search"}>
+        <form onSubmit={handleSearchSubmit} className="relative w-full">
+          <input
+            type="text"
+            placeholder={t("shop.searchPlaceholder") || "Search products..."}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            className="w-full border border-line bg-paper pl-10 pr-4 py-2 text-sm text-ink focus:border-ink"
+          />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate" size={16} />
+        </form>
+      </FilterGroup>
+
+      {collections.length > 0 && (
+        <FilterGroup title={t("shop.collections") || "Collections"}>
+          <select
+            value={currentCollection}
+            onChange={(e) => updateFilter("collectionId", e.target.value)}
+            className="w-full border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-ink"
+          >
+            <option value="">{t("shop.allCollections") || "All Collections"}</option>
+            {collections.map((c) => (
+              <option key={c._id} value={c._id}>
+                {locale === "ar" ? c.nameAr : c.nameEn}
+              </option>
+            ))}
+          </select>
+        </FilterGroup>
+      )}
 
       <FilterGroup title={t("shop.category")}>
         <div className="flex flex-col gap-3">
@@ -77,33 +156,12 @@ export default function FilterSidebar({ filters, onChange, onClear }) {
             <label key={cat} className="flex items-center gap-2.5 cursor-pointer">
               <input
                 type="checkbox"
-                checked={filters.categories.includes(cat)}
+                checked={currentCategories.includes(cat)}
                 onChange={() => toggleCategory(cat)}
                 className="h-4 w-4 rounded-none border border-line text-ink accent-ink"
               />
               <span className="text-sm text-ink">{t(`categories.${cat}`)}</span>
             </label>
-          ))}
-        </div>
-      </FilterGroup>
-
-      <FilterGroup title={t("shop.size")}>
-        <div className="flex flex-wrap gap-2">
-          {sizesAvailable.map((size) => (
-            <button
-              key={size}
-              type="button"
-              onClick={() => toggleSize(size)}
-              aria-pressed={filters.sizes.includes(size)}
-              className={cn(
-                "flex h-8 min-w-8 items-center justify-center border px-2 text-xs font-medium transition-colors",
-                filters.sizes.includes(size)
-                  ? "border-ink bg-ink text-paper"
-                  : "border-line text-slate hover:border-ink hover:text-ink"
-              )}
-            >
-              {size}
-            </button>
           ))}
         </div>
       </FilterGroup>
@@ -115,8 +173,8 @@ export default function FilterSidebar({ filters, onChange, onClear }) {
               <input
                 type="radio"
                 name="priceRange"
-                checked={filters.priceRange === range.id}
-                onChange={() => setPriceRange(range.id)}
+                checked={getCurrentPriceRangeId() === range.id}
+                onChange={() => setPriceRange(range.min, range.max)}
                 className="h-4 w-4 border border-line text-ink accent-ink"
               />
               <span className="text-sm text-ink">{priceLabels[range.id]}</span>
@@ -127,5 +185,3 @@ export default function FilterSidebar({ filters, onChange, onClear }) {
     </div>
   );
 }
-
-export { PRICE_RANGES };

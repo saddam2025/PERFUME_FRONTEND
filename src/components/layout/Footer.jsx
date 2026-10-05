@@ -5,13 +5,13 @@ export default function Footer() {
   const { t } = useLanguage();
 
   // تعريف اللينكات هنا أضمن بمليون مرة عشان لو ملف الـ JSON باظ، اللينكات متختفيش
+  // Footer.jsx — only this array needs to change
   const shopLinks = [
-    { label: t("footer.tshirts") || "T-Shirts / تيشرتات", to: "/shop?type=t-shirt" },
-    { label: t("footer.jackets") || "Jackets / جواكت", to: "/shop?type=jacket" },
-    { label: t("footer.hoodies") || "Hoodies / هوديز", to: "/shop?type=hoodie" },
-    { label: t("footer.pants") || "Pants / بناطيل", to: "/shop?type=pants" },
+    { label: t("footer.tshirts") || "T-Shirts / تيشرتات", to: "/shop?category=tshirts" },
+    { label: t("footer.jackets") || "Jackets / جواكت", to: "/shop?category=jackets" },
+    { label: t("footer.hoodies") || "Hoodies / هوديز", to: "/shop?category=hoodies" },
+    { label: t("footer.pants") || "Pants / بناطيل", to: "/shop?category=pants" },
   ];
-
   const helpLinks = [
     { label: t("footer.shippingPolicy") || "Shipping Policy / سياسة الشحن", to: "/shipping-policy" },
     { label: t("footer.returnPolicy") || "Return Policy / سياسة الاستبدال والاسترجاع", to: "/return-policy" },
@@ -22,10 +22,7 @@ export default function Footer() {
       label: t("footer.whatsapp1") || "+20 106 036 9537",
       href: "https://wa.me/201060369537",
     },
-    {
-      label: t("footer.whatsapp2") || "+20 104 420 1267",
-      href: "https://wa.me/201044201267",
-    },
+    
   ];
 
   return (
@@ -35,14 +32,14 @@ export default function Footer() {
           
           {/* عمود اللوجو والتاغ لاين */}
           <div className="col-span-2 md:order-last">
-            <span className="font-display text-lg font-black tracking-tightest">TORONTO</span>
+            <span className="font-display text-lg font-black tracking-tightest ">TORONTO</span>
             <p className="mt-3 max-w-xs text-sm text-slate">{t("footer.tagline")}</p>
           </div>
 
           {/* عمود تواصل معنا واتساب */}
           <div>
-            <h3 className="label-tracked mb-4 text-ink font-bold">{t("footer.contactHeading") || "تواصل معنا"}</h3>
-            <ul className="flex flex-col gap-3">
+            <h3 className="label-tracked mb-4 text-ink font-bold text-center">{t("footer.contactHeading") || "تواصل معنا"}</h3>
+            <ul className="flex flex-col gap-3 text-center">
               {whatsappLinks.map((link) => (
                 <li key={link.href}>
                   <a
@@ -68,8 +65,8 @@ export default function Footer() {
 
           {/* عمود روابط المساعدة والسياسات */}
           <div>
-            <h3 className="label-tracked mb-4 text-ink font-bold">{t("footer.helpHeading") || "الدعم والسياسات"}</h3>
-            <ul className="flex flex-col gap-3">
+            <h3 className="label-tracked mb-4 text-ink font-bold text-center">{t("footer.helpHeading") || "الدعم والسياسات"}</h3>
+            <ul className="flex flex-col gap-3 text-center">
               {helpLinks.map((link) => (
                 <li key={link.to}>
                   <Link to={link.to} className="text-sm text-slate transition-colors hover:text-ink">
@@ -82,8 +79,8 @@ export default function Footer() {
 
           {/* عمود الأقسام والمنتجات */}
           <div>
-            <h3 className="label-tracked mb-4 text-ink font-bold">{t("footer.shopHeading") || "المتجر"}</h3>
-            <ul className="flex flex-col gap-3">
+            <h3 className="label-tracked mb-4 text-ink font-bold text-center">{t("footer.shopHeading") || "المتجر"}</h3>
+            <ul className="flex flex-col gap-3 text-center">
               {shopLinks.map((link) => (
                 <li key={link.to}>
                   <Link to={link.to} className="text-sm text-slate transition-colors hover:text-ink">

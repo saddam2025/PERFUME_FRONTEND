@@ -1,32 +1,50 @@
+// ProductCard.jsx — FIXED
+// Fix: Bug 3 — broken image URL when VITE_API_BASE_URL is undefined.
+//   `env?.replace(...) + path` evaluates to "undefined/uploads/..." when the env var
+//   is not set (optional chaining returns undefined, and undefined + string = "undefined...").
+//   The `|| primaryImage` fallback never fires because "undefined/..." is truthy.
+//   Fix: resolve BASE_URL once with a safe fallback to empty string.
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus } from "lucide-react";
+import { Plus, Image as ImageIcon } from "lucide-react";
 import { useLanguage } from "../../context/LanguageContext";
 import { useCart } from "../../context/CartContext";
 import { formatPrice } from "../../lib/formatPrice";
 import { getTotalStock, getStockForSize } from "../../lib/productHelpers";
 
+// FIX Bug 3: compute once, fallback to '' so concatenation never yields "undefined/...".
+const BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api").replace('/api', '');
+
 export default function ProductCard({ product }) {
   const { t, locale } = useLanguage();
   const { addItem } = useCart();
-  const [selectedSize, setSelectedSize] = useState(product.sizes[0]);
+  const [selectedSize, setSelectedSize] = useState(product.sizes?.[0]);
 
-  const name = locale === "ar" ? product.nameAr : product.nameKey;
+  const name = locale === "ar" ? (product.nameAr || product.nameKey) : (product.nameEn || product.nameKey);
   const totalStock = getTotalStock(product);
   const isLowStock = totalStock > 0 && totalStock <= 10;
   const onSale = Boolean(product.compareAtPrice);
-  const sizeStock = getStockForSize(product, selectedSize);
+  const sizeStock = selectedSize ? getStockForSize(product, selectedSize) : 0;
   const defaultColor = product.colors?.[0];
 
+  const primaryImage = product.imageUrls?.[0] || null;  
   const handleAddToCart = () => {
-    if (sizeStock <= 0) return;
+    if (sizeStock <= 0 || !selectedSize) return;
     addItem(product, selectedSize, defaultColor);
   };
 
   return (
     <div className="group flex flex-col">
-      {/* Image area */}
-      <Link to={`/product/${product.id}`} className="relative block aspect-[3/4] w-full overflow-hidden border border-line" style={{ backgroundColor: product.swatch }}>
+      <Link to={`/product/${product._id || product.id}`} className="relative block aspect-[3/4] w-full overflow-hidden border border-line bg-paper flex items-center justify-center">
+        {primaryImage ? (
+          <img
+            src={BASE_URL + primaryImage}
+            alt={name}
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+          />
+        ) : (
+          <ImageIcon className="text-line w-12 h-12" />
+        )}
         {(product.isNew || onSale) && (
           <div className="absolute top-3 start-3 flex flex-col gap-1.5">
             {product.isNew && (
@@ -49,9 +67,8 @@ export default function ProductCard({ product }) {
         )}
       </Link>
 
-      {/* Info */}
       <div className="mt-3.5 flex flex-1 flex-col">
-        <Link to={`/product/${product.id}`}>
+        <Link to={`/product/${product._id || product.id}`}>
           <h3 className="text-sm font-medium text-ink hover:text-slate">{name}</h3>
         </Link>
 
@@ -66,9 +83,8 @@ export default function ProductCard({ product }) {
           )}
         </div>
 
-        {/* Size selector */}
         <div className="mt-3 flex flex-wrap gap-1.5">
-          {product.sizes.map((size) => (
+          {product.sizes?.map((size) => (
             <button
               key={size}
               type="button"

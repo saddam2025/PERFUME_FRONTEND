@@ -1,112 +1,211 @@
+// frontend/src/pages/Checkout.jsx
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { CreditCard, Truck } from "lucide-react";
+import { CreditCard, Truck, Check } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { cn } from "../lib/cn";
+import api from "../api/axios";
 import { useCart } from "../context/CartContext";
+
+function resolveProductId(item) {
+  return (
+    item.productId ||
+    item._id ||
+    item.id ||
+    item.product?._id ||
+    item.product?.id ||
+    null
+  );
+}
+
+function resolveQuantity(item) {
+  const raw = item.qty ?? item.quantity ?? 1;
+  const parsed = parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+}
 
 export default function Checkout() {
   const { t, locale } = useLanguage();
   const navigate = useNavigate();
-  
-  const { 
-    items, 
-    subtotal, 
-    shipping, 
-    discount, 
-    total, 
-    appliedCoupon, 
-    clearCart 
-  } = useCart();
 
-  const [paymentMethod, setPaymentMethod] = useState("cod");
+  const {
+    items,
+    subtotal,
+    shipping,
+    discount,
+    total,
+    appliedCoupon,
+    clearCart,
+  } = useCart();
   const [formData, setFormData] = useState({ name: "", address: "", phone: "" });
+  const [paymentMethod, setPaymentMethod] = useState("cod");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [orderPlaced, setOrderPlaced] = useState(false);
 
   useEffect(() => {
-    if (items.length === 0) {
+    if (items.length === 0 && !isSubmitting && !orderPlaced) {
       navigate("/cart");
     }
-  }, [items, navigate]);
+  }, [items, navigate, isSubmitting, orderPlaced]);
+// frontend/src/pages/Checkout.jsx — only handleSubmit's payload-building changed
+  const buildOrderItems = () =>
+    items.map((item) => ({
+      productId: resolveProductId(item),
+      quantity: resolveQuantity(item),
+      // FIX: size/color were being silently dropped — the cart line has
+      // them (item.size is a string, item.color is the color object from
+      // productHelpers with { nameEn, nameAr, id }), they just never made
+      // it into the request payload.
+      size: item.size || null,
+      color: item.color?.nameEn || item.color?.id || item.color || null,
+    }));
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    const orderData = {
-      items,
-      subtotal,
-      shippingCost: shipping,
-      discount,
-      finalTotal: total,
-      couponCode: appliedCoupon ? appliedCoupon.code : null,
-      shippingDetails: formData,
-      paymentMethod
-    };
+    setErrorMessage("");
 
-    console.log("Order is ready for Backend:", orderData);
-    clearCart();
-    navigate("/order-success", { state: { total, paymentMethod } });
+    const orderItems = buildOrderItems();
+    const invalidItem = orderItems.find((item) => !item.productId || item.quantity < 1);
+    if (invalidItem) {
+      setErrorMessage(
+        locale === "ar"
+          ? "أحد المنتجات في سلتك غير صالح. برجاء إزالته وإضافته مرة أخرى."
+          : "One of the items in your cart is invalid. Please remove and re-add it."
+      );
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      if (paymentMethod === "card") {
+        // Step 3 of the Paymob flow: hand off to the backend, which runs
+        // Auth Token -> Register Order -> Payment Key and returns an
+        // iframe URL we redirect the customer into.
+        const response = await api.post("/orders/pay/paymob", {
+          items: orderItems,
+          affiliateCode: appliedCoupon ? appliedCoupon.code : undefined,
+          shippingDetails: formData,
+        });
+
+        const iframeUrl = response.data.iframeUrl;
+        if (!iframeUrl) {
+          throw new Error(
+            locale === "ar" ? "فشل إنشاء رابط الدفع الإلكتروني" : "Failed to generate payment URL."
+          );
+        }
+
+        // Cart is cleared once the customer reaches Paymob — the order
+        // already exists server-side (Pending/Pending) and the webhook
+        // will mark it Paid on success.
+        clearCart();
+        window.location.href = iframeUrl;
+        return;
+      }
+      // Cash On Delivery
+      const response = await api.post("/orders", {
+        items: orderItems,
+        affiliateCode: appliedCoupon ? appliedCoupon.code : undefined,
+        // FIX: previously only sent to the Paymob endpoint, never to COD.
+        shippingDetails: formData,
+      });
+
+      clearCart();
+      setOrderPlaced(true);
+
+      setTimeout(() => {
+        navigate("/order-success", {
+          state: { total, paymentMethod, orderId: response.data.order?._id },
+        });
+      }, 1200);
+    } catch (err) {
+      console.error("Order Submission Error:", err);
+      setErrorMessage(
+        err.response?.data?.message ||
+          err.message ||
+          (locale === "ar"
+            ? "حدث خطأ أثناء تنفيذ الطلب. يرجى المحاولة مرة أخرى."
+            : "Error placing order. Please try again.")
+      );
+      setIsSubmitting(false);
+    }
   };
 
-  if (items.length === 0) return null;
+  if (items.length === 0 && !orderPlaced) return null;
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6 lg:px-8" dir={locale === "ar" ? "rtl" : "ltr"}>
+      {orderPlaced && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/80 px-4">
+          <div className="flex flex-col items-center gap-3 bg-paper px-8 py-10 text-center shadow-xl">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-ink">
+              <Check size={28} strokeWidth={2.5} className="text-paper" />
+            </div>
+            <p className="font-display text-lg font-bold text-ink">
+              {locale === "ar" ? "تم تقديم طلبك بنجاح!" : "Your order has been placed successfully!"}
+            </p>
+            <p className="text-xs text-slate">
+              {locale === "ar" ? "جاري تحويلك..." : "Redirecting you now..."}
+            </p>
+          </div>
+        </div>
+      )}
+
       <h1 className="font-display text-2xl font-bold uppercase text-ink mb-8">
         {locale === "ar" ? "إتمام الشراء" : "Checkout"}
       </h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        
-        {/* Shipping Form & Payment Selection */}
+
         <form onSubmit={handleSubmit} className="space-y-4 border border-line p-6 bg-paper-dim">
           <h3 className="text-sm font-bold uppercase tracking-wider text-ink mb-3">
             {locale === "ar" ? "تفاصيل الشحن" : "Shipping Details"}
           </h3>
-          
+
           <div>
             <label className="block text-xs uppercase font-semibold text-slate mb-1">
               {locale === "ar" ? "الاسم بالكامل" : "Full Name"}
             </label>
-            <input 
-              type="text" 
-              className="w-full border border-line bg-paper px-3 py-2 text-sm focus:border-ink outline-none" 
-              required 
+            <input
+              type="text"
+              className="w-full border border-line bg-paper px-3 py-2 text-sm focus:border-ink outline-none"
+              required
               value={formData.name}
-              onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+              onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
             />
           </div>
           <div>
             <label className="block text-xs uppercase font-semibold text-slate mb-1">
               {locale === "ar" ? "العنوان بالتفصيل" : "Address"}
             </label>
-            <input 
-              type="text" 
-              className="w-full border border-line bg-paper px-3 py-2 text-sm focus:border-ink outline-none" 
-              required 
+            <input
+              type="text"
+              className="w-full border border-line bg-paper px-3 py-2 text-sm focus:border-ink outline-none"
+              required
               value={formData.address}
-              onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
+              onChange={(e) => setFormData((prev) => ({ ...prev, address: e.target.value }))}
             />
           </div>
           <div>
             <label className="block text-xs uppercase font-semibold text-slate mb-1">
               {locale === "ar" ? "رقم الهاتف" : "Phone Number"}
             </label>
-            <input 
-              type="tel" 
-              className="w-full border border-line bg-paper px-3 py-2 text-sm focus:border-ink outline-none" 
-              required 
+            <input
+              type="tel"
+              className="w-full border border-line bg-paper px-3 py-2 text-sm focus:border-ink outline-none"
+              required
               value={formData.phone}
-              onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+              onChange={(e) => setFormData((prev) => ({ ...prev, phone: e.target.value }))}
             />
           </div>
 
-          {/* Payment Selection */}
           <div className="mt-8 pt-4 border-t border-line">
             <h3 className="text-sm font-bold uppercase tracking-wider text-ink mb-3">
               {locale === "ar" ? "طريقة الدفع" : "Payment Method"}
             </h3>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              
+
               <button
                 type="button"
                 onClick={() => setPaymentMethod("cod")}
@@ -154,22 +253,63 @@ export default function Checkout() {
             </div>
           </div>
 
-          <button type="submit" className="w-full bg-ink text-paper py-3 text-xs font-bold uppercase tracking-wider hover:opacity-90 transition-opacity mt-6">
-            {locale === "ar" ? "تأكيد الطلب" : "Place Order"}
+          {errorMessage && (
+            <p className="text-sm font-medium text-red-700 bg-red-50 border border-red-200 p-3 mt-4 text-center">
+              {errorMessage}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full bg-ink text-paper py-4 text-sm font-bold uppercase tracking-widest hover:opacity-90 transition-opacity mt-6 disabled:opacity-50"
+          >
+            {isSubmitting
+              ? (locale === "ar" ? "جاري معالجة طلبك..." : "Processing...")
+              : (paymentMethod === "card"
+                  ? (locale === "ar" ? "الانتقال للدفع الإلكتروني" : "Proceed to Payment")
+                  : (locale === "ar" ? "تأكيد الطلب الآن" : "Place Order Now"))}
           </button>
         </form>
 
-        {/* Order Summary Right Panel */}
         <div className="border border-line p-6 h-fit bg-paper sticky top-24">
           <h3 className="text-sm font-bold uppercase tracking-wider text-ink mb-4">
             {locale === "ar" ? "ملخص الطلب" : "Order Summary"}
           </h3>
-          <div className="space-y-3 text-sm text-slate">
+
+          <div className="divide-y divide-line max-h-60 overflow-y-auto mb-4 pr-1 space-y-3">
+            {items.map((item, index) => (
+              <div
+                key={`${item._id || item.productId || index}-${index}`}
+                className="flex items-center gap-3 py-3 first:pt-0 last:pb-0"
+              >
+                {item.image && (
+                  <img
+                    src={item.image}
+                    alt={item.name}
+                    className="h-14 w-11 object-cover bg-paper-dim border border-line"
+                  />
+                )}
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-xs font-semibold text-ink truncate">{item.name}</h4>
+                  <p className="text-[11px] text-slate mt-0.5">
+                    {item.size && `${locale === "ar" ? "المقاس" : "Size"}: ${item.size}`}
+                    {item.color && ` | ${locale === "ar" ? "اللون" : "Color"}: ${item.color}`}
+                  </p>
+                  <p className="text-xs text-ink font-medium mt-1">
+                    {item.qty} × EGP {item.price?.toFixed(2)}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="space-y-3 text-sm text-slate border-t border-line pt-4">
             <div className="flex justify-between">
               <span>{locale === "ar" ? "المجموع الفرعي" : "Subtotal"}</span>
               <span className="font-semibold text-ink">EGP {subtotal.toFixed(2)}</span>
             </div>
-            
+
             {discount > 0 && (
               <div className="flex justify-between text-green-600">
                 <span>{locale === "ar" ? "الخصم" : "Discount"}</span>
@@ -183,11 +323,11 @@ export default function Checkout() {
                 {shipping === 0 ? (locale === "ar" ? "مجاني" : "Free") : `EGP ${shipping.toFixed(2)}`}
               </span>
             </div>
-            
+
             {shipping > 0 && (
               <p className="text-[11px] text-amber-600 bg-amber-50 p-1.5 text-center font-medium mt-3 border border-amber-200">
-                {locale === "ar" 
-                  ? `أضف بـ EGP ${(6000 - subtotal).toFixed(2)} أخرى للحصول على شحن مجاني!` 
+                {locale === "ar"
+                  ? `أضف بـ EGP ${(6000 - subtotal).toFixed(2)} أخرى للحصول على شحن مجاني!`
                   : `Add EGP ${(6000 - subtotal).toFixed(2)} more for FREE shipping!`}
               </p>
             )}

@@ -1,31 +1,34 @@
-import { useEffect, useMemo, useState } from "react";
+// Shop.jsx — only the imports and the fetchProducts params section change
+import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { SlidersHorizontal, X } from "lucide-react";
+import { SlidersHorizontal, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import api from "../api/axios";
-import { mapApiProductToUiProduct, CATEGORY_TO_PRODUCT_TYPE, PRODUCT_TYPE_TO_CATEGORY } from "../lib/productHelpers";
+import { mapApiProductToUiProduct, CATEGORY_TO_PRODUCT_TYPE } from "../lib/productHelpers";
 import ProductCard from "../components/product/ProductCard";
-import FilterSidebar, { PRICE_RANGES } from "../components/product/FilterSidebar";
-
-const DEFAULT_FILTERS = { categories: [], sizes: [], priceRange: "all" };
+import FilterSidebar from "../components/product/FilterSidebar";
 
 export default function Shop() {
   const { t } = useLanguage();
   const [searchParams, setSearchParams] = useSearchParams();
-  const typeParam = searchParams.get("type");
 
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const [filters, setFilters] = useState(DEFAULT_FILTERS);
-  const [sortBy, setSortBy] = useState("newest");
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
-  // The `type` query param (e.g. ?type=jacket) drives the actual API request —
-  // filtering happens server-side via Product.find({ productType }). Sidebar
-  // category checkboxes stay client-side on top of whatever the server already
-  // returned, since multi-category selection isn't a single `type` param.
+  const page = Number(searchParams.get("page")) || 1;
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalResults, setTotalResults] = useState(0);
+
+  const currentSearch = searchParams.get("search") || "";
+  const currentCategory = searchParams.get("category") || "";
+  const currentMinPrice = searchParams.get("minPrice") || "";
+  const currentMaxPrice = searchParams.get("maxPrice") || "";
+  const currentCollection = searchParams.get("collectionId") || "";
+  const currentSort = searchParams.get("sort") || "newest";
+
   useEffect(() => {
     let cancelled = false;
 
@@ -33,15 +36,48 @@ export default function Shop() {
       setLoading(true);
       setError(null);
       try {
-        const params = typeParam ? { type: typeParam } : {};
+        // FIX: currentCategory holds UI keys (tshirts, jackets, hoodies, pants)
+        // set by FilterSidebar/Footer — the backend's Product.category enum
+        // uses different values (t-shirt, jacket, hoodie, pants). Translate
+        // each comma-joined token before sending, or every category except
+        // "pants" (which happens to match by coincidence) silently returns
+        // zero results.
+        const translatedCategory = currentCategory
+          ? currentCategory
+              .split(",")
+              .map((key) => CATEGORY_TO_PRODUCT_TYPE[key] || key)
+              .join(",")
+          : "";
+
+        const params = {
+          page,
+          limit: 12,
+          category: translatedCategory,
+          search: currentSearch,
+          minPrice: currentMinPrice,
+          maxPrice: currentMaxPrice,
+          collectionId: currentCollection,
+          sort: currentSort,
+        };
+
+        Object.keys(params).forEach(key => !params[key] && delete params[key]);
+
         const { data } = await api.get("/products", { params });
         if (!cancelled) {
           const mapped = (data?.data?.products || []).map(mapApiProductToUiProduct);
           setProducts(mapped);
+          setTotalPages(data.totalPages || 1);
+          setTotalResults(data.total || 0);
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err.response?.data?.message || err.message);
+          if (err.response?.status === 404) {
+            setProducts([]);
+            setTotalResults(0);
+            setTotalPages(1);
+          } else {
+            setError(err.response?.data?.message || err.message);
+          }
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -49,58 +85,37 @@ export default function Shop() {
     }
 
     fetchProducts();
-    return () => {
-      cancelled = true;
-    };
-  }, [typeParam]);
+    return () => { cancelled = true; };
+  }, [page, currentCategory, currentSearch, currentMinPrice, currentMaxPrice, currentCollection, currentSort]);
 
-  // Keep the sidebar's category checkboxes in sync with the URL's ?type=
-  // param, so landing on /shop?type=jacket shows "Jackets" pre-checked.
-  useEffect(() => {
-    if (typeParam && PRODUCT_TYPE_TO_CATEGORY[typeParam]) {
-      setFilters((prev) => ({ ...prev, categories: [PRODUCT_TYPE_TO_CATEGORY[typeParam]] }));
-    }
-  }, [typeParam]);
-
-  const filteredProducts = useMemo(() => {
-    const activeRange = PRICE_RANGES.find((r) => r.id === filters.priceRange) || PRICE_RANGES[0];
-
-    let result = products.filter((product) => {
-      const matchesCategory =
-        filters.categories.length === 0 || filters.categories.includes(product.category);
-      const matchesSize =
-        filters.sizes.length === 0 || product.sizes.some((s) => filters.sizes.includes(s));
-      const matchesPrice = product.price >= activeRange.min && product.price <= activeRange.max;
-      return matchesCategory && matchesSize && matchesPrice;
-    });
-
-    if (sortBy === "priceLow") {
-      result = [...result].sort((a, b) => a.price - b.price);
-    } else if (sortBy === "priceHigh") {
-      result = [...result].sort((a, b) => b.price - a.price);
+  const updateFilter = (key, value) => {
+    const nextParams = new URLSearchParams(searchParams);
+    if (value) {
+      nextParams.set(key, value);
     } else {
-      result = [...result].sort((a, b) => (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0));
+      nextParams.delete(key);
     }
-
-    return result;
-  }, [products, filters, sortBy]);
-
-  const clearFilters = () => {
-    setFilters(DEFAULT_FILTERS);
-    setSearchParams({});
+    if (key !== "page") {
+      nextParams.set("page", "1");
+    }
+    setSearchParams(nextParams);
   };
 
-  // When the sidebar's category checkboxes change to a single category,
-  // reflect it in the URL so the server-side filter and the UI stay in sync
-  // (and so the filtered view is shareable/bookmarkable).
-  const handleFiltersChange = (nextFilters) => {
-    setFilters(nextFilters);
-    if (nextFilters.categories.length === 1) {
-      const nextType = CATEGORY_TO_PRODUCT_TYPE[nextFilters.categories[0]];
-      setSearchParams(nextType ? { type: nextType } : {});
-    } else if (nextFilters.categories.length === 0 && typeParam) {
-      setSearchParams({});
-    }
+  const batchUpdateFilters = (updates) => {
+    const nextParams = new URLSearchParams(searchParams);
+    updates.forEach(({ key, value }) => {
+      if (value) {
+        nextParams.set(key, value);
+      } else {
+        nextParams.delete(key);
+      }
+    });
+    nextParams.set("page", "1");
+    setSearchParams(nextParams);
+  };
+
+  const clearFilters = () => {
+    setSearchParams({});
   };
 
   return (
@@ -110,19 +125,21 @@ export default function Shop() {
           {t("shop.title")}
         </h1>
         <p className="text-sm text-slate">
-          {t("shop.resultsCount", { count: filteredProducts.length })}
+          {t("shop.resultsCount", { count: totalResults })}
         </p>
       </div>
 
       <div className="mt-8 flex flex-col gap-10 lg:flex-row lg:gap-10">
-        {/* Desktop sidebar */}
-        <aside className="hidden w-60 shrink-0 lg:block">
-          <FilterSidebar filters={filters} onChange={handleFiltersChange} onClear={clearFilters} />
+        <aside className="hidden w-64 shrink-0 lg:block">
+          <FilterSidebar
+            searchParams={searchParams}
+            updateFilter={updateFilter}
+            batchUpdateFilters={batchUpdateFilters}
+            onClear={clearFilters}
+          />
         </aside>
 
-        {/* Main content */}
         <div className="flex-1">
-          {/* Toolbar: mobile filter trigger + sort */}
           <div className="mb-6 flex items-center justify-between gap-4">
             <button
               type="button"
@@ -139,8 +156,8 @@ export default function Shop() {
               </label>
               <select
                 id="sort"
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
+                value={currentSort}
+                onChange={(e) => updateFilter("sort", e.target.value)}
                 className="border border-line bg-paper px-3 py-2.5 text-sm text-ink focus:border-ink"
               >
                 <option value="newest">{t("shop.sortNewest")}</option>
@@ -158,7 +175,7 @@ export default function Shop() {
             <div className="flex flex-col items-center justify-center border border-dashed border-line py-20 text-center">
               <p className="text-sm text-red-700">{error}</p>
             </div>
-          ) : filteredProducts.length === 0 ? (
+          ) : products.length === 0 ? (
             <div className="flex flex-col items-center justify-center border border-dashed border-line py-20 text-center">
               <p className="text-sm text-slate">{t("shop.noResults")}</p>
               <button
@@ -170,16 +187,39 @@ export default function Shop() {
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-x-5 gap-y-10 sm:grid-cols-3">
-              {filteredProducts.map((product) => (
-                <ProductCard key={product.id} product={product} />
-              ))}
-            </div>
+            <>
+              <div className="grid grid-cols-2 gap-x-5 gap-y-10 sm:grid-cols-3">
+                {products.map((product) => (
+                  <ProductCard key={product.id || product._id} product={product} />
+                ))}
+              </div>
+
+              {totalPages > 1 && (
+                <div className="mt-12 flex items-center justify-center gap-4">
+                  <button
+                    onClick={() => updateFilter("page", String(page - 1))}
+                    disabled={page === 1}
+                    className="flex items-center gap-1 border border-line px-4 py-2 text-sm disabled:opacity-50"
+                  >
+                    <ChevronLeft size={16} /> {t("common.prev")}
+                  </button>
+                  <span className="text-sm text-slate">
+                    {page} / {totalPages}
+                  </span>
+                  <button
+                    onClick={() => updateFilter("page", String(page + 1))}
+                    disabled={page === totalPages}
+                    className="flex items-center gap-1 border border-line px-4 py-2 text-sm disabled:opacity-50"
+                  >
+                    {t("common.next")} <ChevronRight size={16} />
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
 
-      {/* Mobile filter drawer */}
       {mobileFiltersOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div
@@ -193,13 +233,17 @@ export default function Shop() {
               <button
                 type="button"
                 onClick={() => setMobileFiltersOpen(false)}
-                aria-label="Close filters"
                 className="flex h-8 w-8 items-center justify-center"
               >
                 <X size={20} strokeWidth={1.75} />
               </button>
             </div>
-            <FilterSidebar filters={filters} onChange={handleFiltersChange} onClear={clearFilters} />
+            <FilterSidebar
+              searchParams={searchParams}
+              updateFilter={updateFilter}
+              batchUpdateFilters={batchUpdateFilters}
+              onClear={clearFilters}
+            />
             <button
               type="button"
               onClick={() => setMobileFiltersOpen(false)}

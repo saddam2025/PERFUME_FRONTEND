@@ -1,14 +1,16 @@
+// UserProfile.jsx
 import { useState, useEffect } from "react";
 import { Package, AlertCircle, Loader2, User } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../context/LanguageContext";
 import api from "../api/axios";
 import { cn } from "../lib/cn";
+import { formatPrice } from "../lib/formatPrice";
 
 export default function UserProfile() {
   const { user } = useAuth();
   const { t, locale, isRTL } = useLanguage();
-  
+
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -22,14 +24,14 @@ export default function UserProfile() {
         // api interceptor automatically adds the JWT token from localStorage
         const response = await api.get("/orders/my-orders");
         if (isMounted) {
-          setOrders(response.data || []);
+          setOrders(response.data?.orders || []);
           setError(null);
         }
       } catch (err) {
         if (isMounted) {
           setError(
-            err.response?.data?.message || 
-            t("profile.errorFetching") || 
+            err.response?.data?.message ||
+            t("userProfile.errorFetching") ||
             "Failed to load orders. Please try again later."
           );
         }
@@ -49,7 +51,7 @@ export default function UserProfile() {
 
   const getStatusBadge = (status) => {
     const normalizedStatus = status?.toLowerCase() || "pending";
-    
+
     const styles = {
       pending: "bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800",
       shipped: "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800",
@@ -74,13 +76,6 @@ export default function UserProfile() {
     }).format(new Date(dateString));
   };
 
-  const formatPrice = (price) => {
-    return new Intl.NumberFormat(locale === "ar" ? "ar-EG" : "en-US", {
-      style: "currency",
-      currency: "USD", // Adjust based on your default currency
-    }).format(price || 0);
-  };
-
   return (
     <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
       {/* Profile Header */}
@@ -90,7 +85,7 @@ export default function UserProfile() {
         </div>
         <div className="text-center sm:text-start">
           <h1 className="font-display text-2xl font-bold tracking-tight text-ink sm:text-3xl">
-            {user?.name || user?.firstName || t("profile.defaultName") || "Customer"}
+            {user?.name || user?.firstName || t("userProfile.defaultName") || "Customer"}
           </h1>
           <p className="mt-1 text-sm text-slate">
             {user?.email}
@@ -102,7 +97,7 @@ export default function UserProfile() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-bold tracking-tight text-ink">
-            {t("profile.myOrders") || "Order History"}
+            {t("userProfile.myOrders") || "Order History"}
           </h2>
         </div>
 
@@ -111,7 +106,7 @@ export default function UserProfile() {
           <div className="flex h-64 flex-col items-center justify-center gap-3 rounded-2xl border border-line bg-paper-dim">
             <Loader2 className="animate-spin text-ink" size={32} />
             <p className="text-sm font-medium text-slate">
-              {t("profile.loadingOrders") || "Loading your orders..."}
+              {t("userProfile.loadingOrders") || "Loading your orders..."}
             </p>
           </div>
         )}
@@ -132,10 +127,10 @@ export default function UserProfile() {
             </div>
             <div>
               <h3 className="text-lg font-bold text-ink">
-                {t("profile.noOrders") || "No orders yet"}
+                {t("userProfile.noOrders") || "No orders yet"}
               </h3>
               <p className="mt-1 max-w-sm text-sm text-slate">
-                {t("profile.noOrdersDesc") || "When you place an order, it will show up here."}
+                {t("userProfile.noOrdersDesc") || "When you place an order, it will show up here."}
               </p>
             </div>
           </div>
@@ -164,8 +159,8 @@ export default function UserProfile() {
                 </thead>
                 <tbody className="divide-y divide-line bg-paper">
                   {orders.map((order) => (
-                    <tr 
-                      key={order._id || order.id} 
+                    <tr
+                      key={order._id || order.id}
                       className="transition-colors hover:bg-paper-dim/50"
                     >
                       <td className="whitespace-nowrap px-6 py-4 font-medium text-ink">
@@ -175,7 +170,7 @@ export default function UserProfile() {
                         {formatDate(order.createdAt || order.date)}
                       </td>
                       <td className="whitespace-nowrap px-6 py-4 font-semibold text-ink">
-                        {formatPrice(order.totalPrice || order.total)}
+                        {formatPrice(order.totalOrderPrice ?? order.total, locale, t("common.currency"))}
                       </td>
                       <td className="whitespace-nowrap px-6 py-4">
                         {getStatusBadge(order.status)}

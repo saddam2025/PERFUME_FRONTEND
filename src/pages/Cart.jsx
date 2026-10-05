@@ -1,3 +1,4 @@
+// Cart.jsx
 import { Link } from "react-router-dom";
 import { Minus, Plus, X, Tag, ArrowRight, ArrowLeft, ShoppingBag } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
@@ -114,7 +115,7 @@ function OrderSummary() {
               onClick={removeCoupon}
               className="text-xs font-medium text-slate underline-offset-2 hover:text-ink hover:underline"
             >
-              {t("cart.remove2")}
+              {t("cart.removeCoupon")}
             </button>
           </div>
         ) : (
@@ -251,7 +252,7 @@ export default function Cart() {
               to="/checkout"
               className="mt-4 flex w-full items-center justify-center gap-2 bg-ink py-3.5 text-sm font-semibold uppercase tracking-wide text-paper transition-opacity hover:opacity-85"
             >
-              {t("cart.checkout") || "Proceed to Checkout"}
+              {t("cart.checkout")}
               <ArrowIcon size={15} strokeWidth={2} />
             </Link>
           </div>

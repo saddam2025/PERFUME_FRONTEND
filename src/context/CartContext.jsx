@@ -24,22 +24,30 @@ export function CartProvider({ children }) {
 
   const addItem = (product, size, color, qty = 1) => {
     setItems((prev) => {
-      const key = lineKey(product.id, size, color?.id);
+      // 1. استخراج الـ ID الصحيح سواء كان جاي من الداتابيز أو داتا وهمية
+      const pId = product._id || product.id;
+      const cId = color?._id || color?.id;
+
+      const key = lineKey(pId, size, cId);
+      
       const existingIndex = prev.findIndex(
-        (item) => lineKey(item.product.id, item.size, item.color?.id) === key
+        (item) => lineKey(item.product._id || item.product.id, item.size, item.color?._id || item.color?.id) === key
       );
+      
       if (existingIndex > -1) {
         const next = [...prev];
         next[existingIndex] = { ...next[existingIndex], qty: next[existingIndex].qty + qty };
         return next;
       }
-      return [...prev, { product, size, color, qty }];
+      
+      // 2. ضفنا productId و _id صريحين في جذر الأوبجكت عشان الـ Checkout يلقطهم بدون أي مجهود
+      return [...prev, { productId: pId, _id: pId, product, size, color, qty }];
     });
   };
 
   const removeItem = (productId, size, colorId) => {
     setItems((prev) =>
-      prev.filter((item) => lineKey(item.product.id, item.size, item.color?.id) !== lineKey(productId, size, colorId))
+      prev.filter((item) => lineKey(item.product._id || item.product.id, item.size, item.color?._id || item.color?.id) !== lineKey(productId, size, colorId))
     );
   };
 
@@ -50,7 +58,7 @@ export function CartProvider({ children }) {
     }
     setItems((prev) =>
       prev.map((item) =>
-        lineKey(item.product.id, item.size, item.color?.id) === lineKey(productId, size, colorId)
+        lineKey(item.product._id || item.product.id, item.size, item.color?._id || item.color?.id) === lineKey(productId, size, colorId)
           ? { ...item, qty }
           : item
       )
@@ -60,7 +68,7 @@ export function CartProvider({ children }) {
   const incrementQty = (productId, size, colorId) => {
     setItems((prev) =>
       prev.map((item) =>
-        lineKey(item.product.id, item.size, item.color?.id) === lineKey(productId, size, colorId)
+        lineKey(item.product._id || item.product.id, item.size, item.color?._id || item.color?.id) === lineKey(productId, size, colorId)
           ? { ...item, qty: item.qty + 1 }
           : item
       )
@@ -70,12 +78,12 @@ export function CartProvider({ children }) {
   const decrementQty = (productId, size, colorId) => {
     setItems((prev) => {
       const key = lineKey(productId, size, colorId);
-      const target = prev.find((item) => lineKey(item.product.id, item.size, item.color?.id) === key);
+      const target = prev.find((item) => lineKey(item.product._id || item.product.id, item.size, item.color?._id || item.color?.id) === key);
       if (target && target.qty <= 1) {
-        return prev.filter((item) => lineKey(item.product.id, item.size, item.color?.id) !== key);
+        return prev.filter((item) => lineKey(item.product._id || item.product.id, item.size, item.color?._id || item.color?.id) !== key);
       }
       return prev.map((item) =>
-        lineKey(item.product.id, item.size, item.color?.id) === key ? { ...item, qty: item.qty - 1 } : item
+        lineKey(item.product._id || item.product.id, item.size, item.color?._id || item.color?.id) === key ? { ...item, qty: item.qty - 1 } : item
       );
     });
   };
@@ -88,12 +96,12 @@ export function CartProvider({ children }) {
   };
 
   const itemCount = useMemo(() => items.reduce((sum, item) => sum + item.qty, 0), [items]);
-
+  
   const subtotal = useMemo(
     () => items.reduce((sum, item) => sum + item.product.price * item.qty, 0),
     [items]
   );
-
+  
   const shipping = useMemo(() => {
     if (items.length === 0) return 0;
     return subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_FLAT_RATE;
@@ -112,8 +120,6 @@ export function CartProvider({ children }) {
     [subtotal, discount, shipping]
   );
 
-  // Server re-validates this on checkout — this is a client-side UI convenience only,
-  // matching the "never trust client-submitted totals" principle from the backend.
   const applyCoupon = () => {
     const code = couponInput.trim().toUpperCase();
     if (!code) {

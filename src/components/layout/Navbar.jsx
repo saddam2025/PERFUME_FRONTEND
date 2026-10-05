@@ -1,19 +1,44 @@
+// Navbar.jsx
 import { useState } from "react";
 import { Link, NavLink } from "react-router-dom";
-import { User, Users, ShoppingBag, Menu, X, Globe, LogOut } from "lucide-react";
+import { User, LayoutDashboard, ShoppingBag, Menu, X, Globe, LogOut } from "lucide-react";
 import { useLanguage } from "../../context/LanguageContext";
 import { useCart } from "../../context/CartContext";
 import { useAuth } from "../../context/AuthContext";
 import { cn } from "../../lib/cn";
 import logo from "../../assets/logo.png";
 
+function getSecondaryLink(role, t) {
+  const normalizedRole = (role || "").toLowerCase();
+
+  if (normalizedRole === "admin" || normalizedRole === "manager") {
+    return {
+      to: "/admin",
+      label: t("navbar.dashboard"),
+    };
+  }
+
+  if (normalizedRole === "affiliate") {
+    return {
+      to: "/affiliate/dashboard",
+      label: t("navbar.affiliateDashboard"),
+    };
+  }
+
+  // Guest or Customer — show the affiliate request link
+  return {
+    to: "/affiliate/join",
+    label: t("navbar.affiliateRequest"),
+  };
+}
+
 function NavLinks({ className, onLinkClick }) {
   const { t } = useLanguage();
   const links = [
-    { to: "/shop", label: t("nav.shop") },
-    { to: "/collections", label: t("nav.collections") },
-    { to: "/about", label: t("nav.about") },
-    { to: "/contact", label: t("nav.contact") },
+    { to: "/shop",        label: t("navbar.shop") },
+    { to: "/collections", label: t("navbar.collections") },
+    { to: "/about",       label: t("navbar.about") },
+    { to: "/contact",     label: t("navbar.contact") },
   ];
 
   return (
@@ -40,14 +65,20 @@ function NavLinks({ className, onLinkClick }) {
 export default function Navbar() {
   const { t, locale, toggleLocale, isRTL } = useLanguage();
   const { itemCount } = useCart();
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated, logout, role } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [logoError, setLogoError] = useState(false);
+  const [logoError, setLogoError]   = useState(false);
+
+  const secondaryLink = getSecondaryLink(role, t);
 
   return (
-    <header className="sticky top-0 z-50 border-b border-line bg-paper/95 backdrop-blur-sm">
+    <header
+      dir={isRTL ? "rtl" : "ltr"}
+      className="sticky top-0 z-50 border-b border-line bg-paper/95 backdrop-blur-sm"
+    >
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-        {/* Logo */}
+
+        {/* ── Logo ── */}
         <Link to="/" className="flex items-center shrink-0" aria-label="Toronto home">
           {!logoError ? (
             <img
@@ -66,31 +97,39 @@ export default function Navbar() {
           )}
         </Link>
 
-        {/* Desktop nav */}
+        {/* ── Desktop nav ── */}
         <NavLinks className="hidden items-center gap-8 md:flex" />
 
-        {/* Right actions */}
+        {/* ── Right actions ── */}
         <div className="flex items-center gap-2 sm:gap-4">
-          
-          {/* 1. Desktop Affiliate Link */}
-          <Link 
-            to="/affiliate/join" 
+
+          {/* 1. Role-based secondary link (desktop) */}
+          <Link
+            to={secondaryLink.to}
             className="hidden md:flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate hover:text-ink transition-colors border-b border-transparent hover:border-ink py-1"
           >
-            <Users size={15} strokeWidth={1.75} />
-            <span>{t("admin.tabAffiliates") || "Affiliate"}</span>
+            <LayoutDashboard size={15} strokeWidth={1.75} />
+            <span>{secondaryLink.label}</span>
           </Link>
 
-          {/* 2. Desktop Auth Links / User Info */}
+          {/* 2. Auth links / user info (desktop) */}
           {!isAuthenticated ? (
-            <Link 
-              to="/login" 
-              className="hidden md:flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate hover:text-ink transition-colors py-1"
-              aria-label="Account"
-            >
-              <User size={16} strokeWidth={1.75} />
-              <span>{t("auth.signInTitle") || "Sign In"}</span>
-            </Link>
+            <>
+              <Link
+                to="/login"
+                className="hidden md:flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate hover:text-ink transition-colors py-1"
+                aria-label="Account"
+              >
+                <User size={16} strokeWidth={1.75} />
+                <span>{t("auth.signInTitle") || "Sign In"}</span>
+              </Link>
+              <Link
+                to="/register"
+                className="hidden md:flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate hover:text-ink transition-colors py-1"
+              >
+                <span>{t("auth.signUpTitle") || "Register"}</span>
+              </Link>
+            </>
           ) : (
             <>
               <Link
@@ -99,9 +138,9 @@ export default function Navbar() {
                 aria-label="Profile"
               >
                 <User size={16} strokeWidth={1.75} />
-                <span>{user?.name || user?.firstName || "Profile"}</span>
+                <span>{user?.name || user?.firstName || t("navbar.profile")}</span>
               </Link>
-              <button 
+              <button
                 onClick={logout}
                 className="hidden md:flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate hover:text-red-500 transition-colors py-1"
                 aria-label="Logout"
@@ -112,10 +151,10 @@ export default function Navbar() {
             </>
           )}
 
-          {/* Divider line between custom links and system buttons */}
+          {/* Divider */}
           <span className="hidden md:inline h-4 w-px bg-line" />
 
-          {/* Toggle Language */}
+          {/* Language toggle */}
           <button
             type="button"
             onClick={toggleLocale}
@@ -126,7 +165,7 @@ export default function Navbar() {
             <span>{locale === "en" ? "AR" : "EN"}</span>
           </button>
 
-          {/* Cart Icon */}
+          {/* Cart */}
           <Link
             to="/cart"
             className="relative flex h-9 w-9 items-center justify-center rounded-full text-ink transition-colors hover:bg-paper-dim"
@@ -145,7 +184,7 @@ export default function Navbar() {
             )}
           </Link>
 
-          {/* Mobile Menu Toggle Button */}
+          {/* Mobile menu toggle */}
           <button
             type="button"
             className="flex h-9 w-9 items-center justify-center text-ink md:hidden"
@@ -153,39 +192,52 @@ export default function Navbar() {
             aria-label="Toggle menu"
             aria-expanded={mobileOpen}
           >
-            {mobileOpen ? <X size={22} strokeWidth={1.75} /> : <Menu size={22} strokeWidth={1.75} />}
+            {mobileOpen
+              ? <X    size={22} strokeWidth={1.75} />
+              : <Menu size={22} strokeWidth={1.75} />}
           </button>
         </div>
       </div>
 
-      {/* Mobile nav dropdown */}
+      {/* ── Mobile dropdown ── */}
       {mobileOpen && (
-        <div className="border-t border-line bg-paper md:hidden">
+        <div className={cn("border-t border-line bg-paper md:hidden", isRTL ? "text-right" : "text-left")}>
           <NavLinks
             className="flex flex-col gap-5 px-4 pt-6 sm:px-6"
             onLinkClick={() => setMobileOpen(false)}
           />
-          
-          {/* Mobile extra links for account and affiliate inside the dropdown */}
+
           <div className="flex flex-col gap-4 border-t border-line mt-5 px-4 py-6 sm:px-6">
-            <Link 
-              to="/affiliate/join" 
+
+            {/* Role-based secondary link (mobile) */}
+            <Link
+              to={secondaryLink.to}
               onClick={() => setMobileOpen(false)}
               className="flex items-center gap-2.5 text-sm font-semibold uppercase tracking-wider text-slate hover:text-ink"
             >
-              <Users size={18} strokeWidth={1.75} />
-              {t("admin.tabAffiliates") || "Affiliate Program"}
+              <LayoutDashboard size={18} strokeWidth={1.75} />
+              {secondaryLink.label}
             </Link>
-            
+
+            {/* Auth (mobile) */}
             {!isAuthenticated ? (
-              <Link 
-                to="/login" 
-                onClick={() => setMobileOpen(false)}
-                className="flex items-center gap-2.5 text-sm font-semibold uppercase tracking-wider text-slate hover:text-ink"
-              >
-                <User size={18} strokeWidth={1.75} />
-                {t("auth.signInTitle") || "Sign In"}
-              </Link>
+              <>
+                <Link
+                  to="/login"
+                  onClick={() => setMobileOpen(false)}
+                  className="flex items-center gap-2.5 text-sm font-semibold uppercase tracking-wider text-slate hover:text-ink"
+                >
+                  <User size={18} strokeWidth={1.75} />
+                  {t("auth.signInTitle") || "Sign In"}
+                </Link>
+                <Link
+                  to="/register"
+                  onClick={() => setMobileOpen(false)}
+                  className="flex items-center gap-2.5 text-sm font-semibold uppercase tracking-wider text-slate hover:text-ink"
+                >
+                  {t("auth.signUpTitle") || "Register"}
+                </Link>
+              </>
             ) : (
               <>
                 <Link
@@ -194,13 +246,10 @@ export default function Navbar() {
                   className="flex items-center gap-2.5 text-sm font-semibold uppercase tracking-wider text-ink hover:text-slate"
                 >
                   <User size={18} strokeWidth={1.75} />
-                  {user?.name || user?.firstName || "Profile"}
+                  {user?.name || user?.firstName || t("navbar.profile")}
                 </Link>
-                <button 
-                  onClick={() => {
-                    logout();
-                    setMobileOpen(false);
-                  }}
+                <button
+                  onClick={() => { logout(); setMobileOpen(false); }}
                   className="flex items-center gap-2.5 text-sm font-semibold uppercase tracking-wider text-slate hover:text-red-500 text-left"
                 >
                   <LogOut size={18} strokeWidth={1.75} />
