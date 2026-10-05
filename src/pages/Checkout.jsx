@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { CreditCard, Truck, Check } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { cn } from "../lib/cn";
+import { formatPrice } from "../lib/formatPrice";
 import api from "../api/axios";
 import { useCart } from "../context/CartContext";
 
@@ -35,6 +36,8 @@ export default function Checkout() {
     discount,
     total,
     appliedCoupon,
+    freeSelectionsByProduct,
+    serverPricing,
     clearCart,
   } = useCart();
   const [formData, setFormData] = useState({ name: "", address: "", phone: "" });
@@ -42,6 +45,7 @@ export default function Checkout() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [orderPlaced, setOrderPlaced] = useState(false);
+  const [orderResult, setOrderResult] = useState(null);
 
   useEffect(() => {
     if (items.length === 0 && !isSubmitting && !orderPlaced) {
@@ -49,9 +53,14 @@ export default function Checkout() {
     }
   }, [items, navigate, isSubmitting, orderPlaced]);
 // frontend/src/pages/Checkout.jsx — only handleSubmit's payload-building changed
-  const buildOrderItems = () =>
-    items.map((item) => ({
-      productId: resolveProductId(item),
+  const buildOrderItems = () => {
+    const seenProducts = new Set();
+    return items.map((item) => {
+      const productId = resolveProductId(item);
+      const firstForProduct = !seenProducts.has(String(productId));
+      seenProducts.add(String(productId));
+      return ({
+      productId,
       quantity: resolveQuantity(item),
       // FIX: size/color were being silently dropped — the cart line has
       // them (item.size is a string, item.color is the color object from
@@ -59,7 +68,10 @@ export default function Checkout() {
       // it into the request payload.
       size: item.size || null,
       color: item.color?.nameEn || item.color?.id || item.color || null,
-    }));
+      ...(firstForProduct && freeSelectionsByProduct[productId]?.length ? { freeSelections: freeSelectionsByProduct[productId].map((selection) => ({ ...selection, color: selection.color?.nameEn || selection.color?.id || selection.color || null })) } : {}),
+    });
+    });
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -96,6 +108,10 @@ export default function Checkout() {
           );
         }
 
+        if (Math.abs(Number(response.data.totalOrderPrice) - total) > 0.01) {
+          window.alert(locale === "ar" ? `تم تحديث إجمالي الطلب إلى ${response.data.totalOrderPrice} ج.م قبل الدفع.` : `The order total changed to EGP ${response.data.totalOrderPrice} before payment.`);
+        }
+
         // Cart is cleared once the customer reaches Paymob — the order
         // already exists server-side (Pending/Pending) and the webhook
         // will mark it Paid on success.
@@ -112,11 +128,12 @@ export default function Checkout() {
       });
 
       clearCart();
+      setOrderResult(response.data.order);
       setOrderPlaced(true);
 
       setTimeout(() => {
         navigate("/order-success", {
-          state: { total, paymentMethod, orderId: response.data.order?._id },
+          state: { total: response.data.order?.totalOrderPrice ?? total, totalChanged: Math.abs((response.data.order?.totalOrderPrice ?? total) - (serverPricing?.totalOrderPrice ?? total)) > 0.01, appliedPromotions: response.data.order?.appliedPromotions || [], paymentMethod, orderId: response.data.order?._id },
         });
       }, 1200);
     } catch (err) {
@@ -148,6 +165,7 @@ export default function Checkout() {
             <p className="text-xs text-slate">
               {locale === "ar" ? "جاري تحويلك..." : "Redirecting you now..."}
             </p>
+            {orderResult?.appliedPromotions?.length > 0 && <p className="mt-2 max-w-sm text-xs text-slate">{locale === "ar" ? "العروض المطبقة" : "Applied offers"}: {orderResult.appliedPromotions.map((promotion) => promotion.name).join(" · ")} · {locale === "ar" ? "إجمالي الخصم" : "Total savings"}: EGP {orderResult.totalDiscount?.toFixed(2)}</p>}
           </div>
         </div>
       )}
@@ -303,6 +321,7 @@ export default function Checkout() {
               </div>
             ))}
           </div>
+          {(serverPricing?.appliedPromotions || []).map((promotion, index) => <div key={`${promotion.promotionId}-${index}`} className="mb-3 border border-accent/40 bg-accent/10 p-3 text-xs"><p className="font-semibold text-ink">{promotion.name} · {promotion.ruleDescription}</p><p className="mt-1 text-accent-deep">{locale === "ar" ? "وفرت" : "You save"} {formatPrice(promotion.discountAmount || 0, locale, t("common.currency"))}</p>{promotion.freeItems?.length > 0 && <p className="mt-1 text-slate">{locale === "ar" ? "القطع المجانية" : "Free items"}: {promotion.freeItems.map((freeItem) => `${freeItem.quantity}× ${freeItem.name} ${freeItem.size || ""} ${freeItem.color || ""}`).join(" · ")}</p>}</div>)}
 
           <div className="space-y-3 text-sm text-slate border-t border-line pt-4">
             <div className="flex justify-between">

@@ -93,31 +93,23 @@ export default function Footer() {
 
         </div>
 
-        {/* النيوزليتر */}
-        <div className="mt-12 border-t border-line pt-10">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h3 className="label-tracked text-ink font-bold">{t("footer.newsletterHeading")}</h3>
-              <p className="mt-1 text-sm text-slate">{t("footer.newsletterBody")}</p>
-            </div>
-            <form className="flex w-full max-w-sm gap-2" onSubmit={(e) => e.preventDefault()}>
-              <input
-                type="email"
-                required
-                placeholder={t("footer.emailPlaceholder")}
-                className="w-full rounded-none border border-line bg-paper px-4 py-2.5 text-sm text-ink placeholder:text-slate-light focus:border-ink"
-              />
-              <button
-                type="submit"
-                className="shrink-0 bg-ink px-5 py-2.5 text-sm font-semibold text-paper transition-opacity hover:opacity-85"
-              >
-                {t("footer.subscribe")}
-              </button>
-            </form>
-          </div>
+        <div className="mt-12 border-t border-line pt-7 text-center">
+          <p className="text-sm font-semibold text-ink">{t("footer.designedBy")}</p>
+          <p className="mt-2 text-sm text-slate">
+            {t("footer.startProject")} {" "}
+            <a
+              href="https://wa.me/201060369537"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-ink underline underline-offset-4 transition-opacity hover:opacity-70"
+              dir="ltr"
+            >
+              +201060369537
+            </a>
+          </p>
         </div>
 
-        <div className="mt-10 flex flex-col gap-2 border-t border-line pt-6 text-xs text-slate-light sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-7 flex justify-center border-t border-line pt-6 text-center text-xs text-slate-light">
           <span>© {new Date().getFullYear()} Toronto. {t("footer.rights")}</span>
         </div>
       </div>

@@ -1,16 +1,28 @@
 // Cart.jsx
 import { Link } from "react-router-dom";
+import { useEffect } from "react";
 import { Minus, Plus, X, Tag, ArrowRight, ArrowLeft, ShoppingBag } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { useCart } from "../context/CartContext";
 import { formatPrice } from "../lib/formatPrice";
 import { cn } from "../lib/cn";
+import { getPromotionHint } from "../lib/productHelpers";
 
-function CartLineItem({ item }) {
+function CartLineItem({ item, showPromotionControls = true }) {
   const { t, locale } = useLanguage();
-  const { incrementQty, decrementQty, removeItem } = useCart();
+  const { incrementQty, decrementQty, removeItem, items: cartItems, serverPricing, freeSelectionsByProduct, setFreeSelections } = useCart();
   const { product, size, color, qty } = item;
   const name = locale === "ar" ? product.nameAr : product.nameKey;
+  const productId = product._id || product.id;
+  const productQuantity = serverPricing?.productTotals?.find((entry) => String(entry.productId) === String(productId))?.quantity
+    ?? cartItems.filter((line) => String(line.product._id || line.product.id) === String(productId)).reduce((sum, line) => sum + line.qty, 0);
+  const freeCount = getCartFreeCount(product, productQuantity);
+  const nextTier = (product.promotions || []).flatMap((promotion) => (promotion.tiers || []).map((tier) => ({ tier, hint: getPromotionHint({ ...promotion, tiers: [tier] }, locale) })))
+    .filter(({ tier }) => Number(tier.minQty) > productQuantity).sort((a, b) => a.tier.minQty - b.tier.minQty)[0];
+  const selections = freeSelectionsByProduct[productId] || [];
+  useEffect(() => {
+    if (selections.length > freeCount) setFreeSelections(productId, selections.slice(0, freeCount));
+  }, [freeCount, productId, selections, setFreeSelections]);
   const lineTotal = product.price * qty;
 
   return (
@@ -66,9 +78,51 @@ function CartLineItem({ item }) {
             {formatPrice(lineTotal, locale, t("common.currency"))}
           </span>
         </div>
+        {product.promotions?.length > 0 && (
+          <div className="mt-2"><p className="text-xs font-semibold text-accent-deep">{getPromotionHint(product.promotions[0], locale)}</p>{nextTier && <p className="mt-1 text-xs text-slate">{locale === "ar" ? `أضف ${nextTier.tier.minQty - productQuantity} أخرى للوصول إلى ${nextTier.hint}` : `Add ${nextTier.tier.minQty - productQuantity} more to reach ${nextTier.hint}`}</p>}</div>
+        )}
+        {showPromotionControls && freeCount > 0 && (product.sizes?.length > 0 || product.colors?.length > 0) && (
+          <div className="mt-3 border border-accent/40 bg-accent/10 p-3">
+            <p className="mb-2 text-xs font-semibold text-ink">
+              {locale === "ar" ? `اختر مقاس/لون ${freeCount} قطعة مجانية` : `Choose size/color for ${freeCount} free item(s)`}
+            </p>
+            <div className="space-y-2">
+              {Array.from({ length: freeCount }, (_, index) => {
+                const selection = selections[index] || {};
+                return (
+                  <div key={index} className="flex gap-2">
+                    {product.sizes?.length > 0 && <select aria-label={`Free item ${index + 1} size`} value={selection.size || ""} onChange={(event) => { const next = Array.from({ length: freeCount }, (_, i) => selections[i] || { quantity: 1 }); next[index] = { ...next[index], size: event.target.value, quantity: 1 }; setFreeSelections(productId, next); }} className="min-w-0 flex-1 border border-line bg-paper px-2 py-1.5 text-xs"><option value="">{locale === "ar" ? "مقاس القطعة المجانية" : "Free item size"}</option>{product.sizes.map((value) => <option key={value}>{value}</option>)}</select>}
+                    {product.colors?.length > 0 && <select aria-label={`Free item ${index + 1} color`} value={selection.color?.id || selection.color || ""} onChange={(event) => { const next = Array.from({ length: freeCount }, (_, i) => selections[i] || { quantity: 1 }); next[index] = { ...next[index], color: event.target.value, quantity: 1 }; setFreeSelections(productId, next); }} className="min-w-0 flex-1 border border-line bg-paper px-2 py-1.5 text-xs"><option value="">{locale === "ar" ? "لون القطعة المجانية" : "Free item color"}</option>{product.colors.map((value) => <option key={value.id} value={value.nameEn}>{locale === "ar" ? value.nameAr : value.nameEn}</option>)}</select>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
+}
+
+function getCartFreeCount(product, quantity) {
+  const candidates = (product.promotions || []).map((promotion) => {
+    const tiers = (promotion.tiers || []).slice().sort((a, b) => b.minQty - a.minQty);
+    const tier = tiers.find((entry) => entry.minQty <= quantity);
+    if (!tier || promotion.type !== "BUY_X_GET_Y_FREE") return { promotion, benefit: 0, free: 0 };
+    let remaining = quantity;
+    let free = 0;
+    while (remaining > 0) {
+      const next = tiers.find((entry) => entry.minQty <= remaining);
+      if (!next) break;
+      const blocks = Math.floor(remaining / next.minQty);
+      free += blocks * next.getQty;
+      remaining -= blocks * next.minQty;
+    }
+    return { promotion, benefit: free * product.price, free };
+  }).filter((entry) => entry.free > 0);
+  const stackable = candidates.filter((entry) => entry.promotion.stackable);
+  const best = candidates.filter((entry) => !entry.promotion.stackable).sort((a, b) => b.benefit - a.benefit)[0];
+  return [...stackable, ...(best ? [best] : [])].reduce((sum, entry) => sum + entry.free, 0);
 }
 
 function OrderSummary() {
@@ -200,8 +254,8 @@ function OrderSummary() {
 }
 
 export default function Cart() {
-  const { t, isRTL } = useLanguage();
-  const { items, itemCount } = useCart();
+  const { t, isRTL, locale } = useLanguage();
+  const { items, itemCount, serverPricing, pricingError } = useCart();
   const ArrowIcon = isRTL ? ArrowLeft : ArrowRight;
 
   if (items.length === 0) {
@@ -239,9 +293,11 @@ export default function Cart() {
         <div className="flex-1">
           <div className="flex flex-col">
             {items.map((item, idx) => (
-              <CartLineItem key={idx} item={item} />
+              <CartLineItem key={idx} item={item} showPromotionControls={items.findIndex((candidate) => String(candidate.product._id || candidate.product.id) === String(item.product._id || item.product.id)) === idx} />
             ))}
           </div>
+          {pricingError && <p className="mt-4 border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">{pricingError}</p>}
+          {(serverPricing?.appliedPromotions || []).map((promotion) => <p key={`${promotion.promotionId}-${promotion.productId}`} className="mt-3 text-sm font-medium text-accent-deep">{promotion.name}: {promotion.ruleDescription} · {formatPrice(promotion.discountAmount, locale, t("common.currency"))}</p>)}
         </div>
 
         {/* Summary */}

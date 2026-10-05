@@ -1,16 +1,10 @@
-import { createContext, useContext, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import api from "../api/axios";
 
 const CartContext = createContext(null);
 
 const SHIPPING_FLAT_RATE = 100;
 const FREE_SHIPPING_THRESHOLD = 6000;
-
-// Mock coupon table — in production this validates against the backend
-// (AffiliateApplication / discount rules), not a hardcoded client list.
-const MOCK_COUPONS = {
-  WELCOME10: { type: "percent", value: 10 },
-  TORONTO50: { type: "flat", value: 50 },
-};
 
 function lineKey(productId, size, colorId) {
   return `${productId}__${size}__${colorId || "default"}`;
@@ -21,6 +15,9 @@ export function CartProvider({ children }) {
   const [couponInput, setCouponInput] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [couponError, setCouponError] = useState(null);
+  const [serverPricing, setServerPricing] = useState(null);
+  const [pricingError, setPricingError] = useState("");
+  const [freeSelectionsByProduct, setFreeSelectionsByProduct] = useState({});
 
   const addItem = (product, size, color, qty = 1) => {
     setItems((prev) => {
@@ -93,31 +90,81 @@ export function CartProvider({ children }) {
     setAppliedCoupon(null);
     setCouponInput("");
     setCouponError(null);
+    setFreeSelectionsByProduct({});
+    setServerPricing(null);
   };
+
+  const setFreeSelections = (productId, selections) => {
+    setFreeSelectionsByProduct((previous) => ({ ...previous, [productId]: selections }));
+  };
+
+  useEffect(() => {
+    if (!items.length) {
+      setServerPricing(null);
+      setPricingError("");
+      return undefined;
+    }
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      try {
+        const seenProducts = new Set();
+        const pricingItems = items.map((item) => {
+          const productId = item.product._id || item.product.id;
+          const firstForProduct = !seenProducts.has(String(productId));
+          seenProducts.add(String(productId));
+          return {
+            productId,
+            quantity: item.qty,
+            size: item.size || null,
+            color: item.color?.nameEn || item.color?.id || null,
+            ...(firstForProduct && freeSelectionsByProduct[productId]?.length
+              ? { freeSelections: freeSelectionsByProduct[productId].map((selection) => ({ ...selection, color: selection.color?.nameEn || selection.color?.id || selection.color || null })) }
+              : {}),
+          };
+        });
+        const { data } = await api.post("/orders/preview", { items: pricingItems, affiliateCode: appliedCoupon?.code });
+        if (!cancelled) {
+          setServerPricing(data.pricing);
+          setPricingError("");
+          setCouponError(null);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setServerPricing(null);
+          setPricingError(error.response?.data?.message || "");
+          if (appliedCoupon) setCouponError("invalid");
+        }
+      }
+    }, 180);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [items, appliedCoupon, freeSelectionsByProduct]);
 
   const itemCount = useMemo(() => items.reduce((sum, item) => sum + item.qty, 0), [items]);
   
-  const subtotal = useMemo(
+  const localSubtotal = useMemo(
     () => items.reduce((sum, item) => sum + item.product.price * item.qty, 0),
     [items]
   );
+  const subtotal = serverPricing?.subtotal ?? localSubtotal;
   
   const shipping = useMemo(() => {
     if (items.length === 0) return 0;
+    if (serverPricing) return serverPricing.shippingCost || 0;
     return subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_FLAT_RATE;
-  }, [subtotal, items.length]);
+  }, [subtotal, items.length, serverPricing]);
 
   const discount = useMemo(() => {
+    if (serverPricing) return serverPricing.totalDiscount || 0;
     if (!appliedCoupon) return 0;
     if (appliedCoupon.type === "percent") {
       return Math.round((subtotal * appliedCoupon.value) / 100);
     }
-    return Math.min(appliedCoupon.value, subtotal);
-  }, [appliedCoupon, subtotal]);
+    return Number.isFinite(appliedCoupon.value) ? Math.min(appliedCoupon.value, subtotal) : 0;
+  }, [appliedCoupon, subtotal, serverPricing]);
 
   const total = useMemo(
-    () => Math.max(subtotal - discount + shipping, 0),
-    [subtotal, discount, shipping]
+    () => Math.max(serverPricing?.totalOrderPrice ?? (subtotal - discount + shipping), 0),
+    [subtotal, discount, shipping, serverPricing]
   );
 
   const applyCoupon = () => {
@@ -126,13 +173,7 @@ export function CartProvider({ children }) {
       setCouponError("empty");
       return;
     }
-    const match = MOCK_COUPONS[code];
-    if (!match) {
-      setAppliedCoupon(null);
-      setCouponError("invalid");
-      return;
-    }
-    setAppliedCoupon({ code, ...match });
+    setAppliedCoupon({ code });
     setCouponError(null);
   };
 
@@ -144,6 +185,10 @@ export function CartProvider({ children }) {
 
   const value = {
     items,
+    serverPricing,
+    pricingError,
+    freeSelectionsByProduct,
+    setFreeSelections,
     addItem,
     removeItem,
     updateQty,

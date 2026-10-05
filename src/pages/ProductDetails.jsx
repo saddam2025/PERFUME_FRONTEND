@@ -9,7 +9,7 @@ import { ArrowRight, ArrowLeft, Check, Minus, Plus, Ruler, X, Image as ImageIcon
 import { useLanguage } from "../context/LanguageContext";
 import { useCart } from "../context/CartContext";
 import api from "../api/axios";
-import { mapApiProductToUiProduct, getStockForSize, getTotalStock } from "../lib/productHelpers";
+import { mapApiProductToUiProduct, getStockForSize, getTotalStock, getPromotionHint } from "../lib/productHelpers";
 import { formatPrice } from "../lib/formatPrice";
 import { cn } from "../lib/cn";
 
@@ -121,8 +121,11 @@ export default function ProductDetails() {
   const onSale = Boolean(product.compareAtPrice);
   const totalStock = getTotalStock(product);
   const isLowStockOverall = totalStock > 0 && totalStock <= 10;
-  const stockForSelectedSize = selectedSize ? getStockForSize(product, selectedSize) : null;
+  const stockForSelectedSize = selectedSize ? getStockForSize(product, selectedSize, selectedColor?.nameEn) : null;
   const detailsList = t("pdp.detailsList") || [];
+  const nextPromotionTier = (product.promotions || []).flatMap((promotion) =>
+    (promotion.tiers || []).map((tier) => ({ promotion, tier }))
+  ).filter(({ tier }) => Number(tier.minQty) > quantity).sort((a, b) => a.tier.minQty - b.tier.minQty)[0];
 
   // Maps a free-text color name (as typed in the Manager Dashboard's
 // comma-separated colors field) to an actual swatch color. Falls back to
@@ -245,6 +248,24 @@ function getSwatchColor(colorName) {
 
           <p className="mt-5 text-sm leading-relaxed text-slate">{description}</p>
 
+          {product.promotions?.length > 0 && (
+            <div className="mt-6 border border-accent/40 bg-accent/10 p-4">
+              <p className="text-xs font-bold uppercase tracking-wide text-ink">
+                {locale === "ar" ? "العروض المتاحة" : "Available offers"}
+              </p>
+              <ul className="mt-2 space-y-1.5 text-sm text-ink">
+                {product.promotions.map((promotion) => <li key={promotion._id}>• {getPromotionHint(promotion, locale)}</li>)}
+              </ul>
+              {nextPromotionTier && (
+                <p className="mt-2 text-xs font-medium text-accent-deep">
+                  {locale === "ar"
+                    ? `أضف ${nextPromotionTier.tier.minQty - quantity} للوصول للعرض التالي`
+                    : `Add ${nextPromotionTier.tier.minQty - quantity} more to reach the next offer`}
+                </p>
+              )}
+            </div>
+          )}
+
           {product.colors?.length > 0 && (
   <div className="mt-7 border-t border-line pt-6">
     <div className="flex items-center justify-between">
@@ -291,7 +312,7 @@ function getSwatchColor(colorName) {
 
               <div className="mt-3 flex flex-wrap gap-2">
                 {product.sizes.map((size) => {
-                  const stock = getStockForSize(product, size);
+                  const stock = getStockForSize(product, size, selectedColor?.nameEn);
                   const disabled = stock <= 0;
                   return (
                     <button

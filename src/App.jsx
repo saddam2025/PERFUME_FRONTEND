@@ -21,6 +21,7 @@ import AffiliateDashboard from "./pages/AffiliateDashboard";
 import ManagerDashboard from "./pages/ManagerDashboard";
 import ManagerAnalytics from "./pages/ManagerAnalytics";
 import UserProfile from "./pages/UserProfile";
+import Promotions from "./pages/Promotions";
 
 function App() {
   return (
@@ -39,6 +40,7 @@ function App() {
                 <Route path="/affiliate/join" element={<AffiliateJoin />} />
                 <Route path="/affiliate/dashboard" element={<AffiliateDashboard />} />
                 <Route path="/admin" element={<ManagerDashboard />} />
+                <Route path="/admin/promotions" element={<Promotions />} />
                 <Route path="/admin/analytics" element={<ManagerAnalytics />} />
                 <Route path="/profile" element={<UserProfile />} />
                 <Route path="/collections" element={<Collections />} />

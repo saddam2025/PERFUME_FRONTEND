@@ -35,6 +35,9 @@ const TRANSLATIONS = {
     selectDatesMessage: "Please select both From Date and To Date.",
     restrictedTitle: "Manager Access Only",
     restrictedBody: "You don't have permission to view this page.",
+    promotionOrders: "Orders using promotions",
+    promotionDiscount: "Promotion discounts given",
+    topPromotions: "Top promotions",
   },
   ar: {
     title: "لوحة التحليلات",
@@ -64,6 +67,9 @@ const TRANSLATIONS = {
     selectDatesMessage: "من فضلك اختر تاريخ البداية والنهاية.",
     restrictedTitle: "للمدير فقط",
     restrictedBody: "ليس لديك صلاحية لعرض هذه الصفحة.",
+    promotionOrders: "طلبات استخدمت عروضًا",
+    promotionDiscount: "إجمالي خصومات العروض",
+    topPromotions: "أكثر العروض استخدامًا",
   },
 };
 
@@ -124,11 +130,7 @@ export default function ManagerAnalytics() {
   const t = TRANSLATIONS[locale] || TRANSLATIONS.en;
   const BackArrowIcon = isRTL ? ArrowRight : ArrowLeft;
 
-  // NOTE: ManagerDashboard.jsx currently hardcodes `currentRole = ROLES.OWNER`
-  // as a placeholder until real auth/role decoding lands. This guard mirrors
-  // that same "owner/manager only" intent using useAuth()'s role so the page
-  // self-protects once real roles are wired through AuthContext.
-  const isManager = !role || role === "owner" || role === "manager" || role === "Manager";
+  const isManager = role === "Manager" || role === "Admin";
 
   const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const monthAgoStr = useMemo(() => {
@@ -334,6 +336,12 @@ export default function ManagerAnalytics() {
                 />
               ))}
             </div>
+
+            <section className="grid gap-3 md:grid-cols-3">
+              <SummaryCard label={t.promotionOrders} value={analytics?.promotionOrders} accentClass="text-ink" />
+              <SummaryCard label={t.promotionDiscount} value={analytics?.totalPromotionDiscount} accentClass="text-accent-deep" />
+              <div className="border border-line bg-paper p-4 sm:p-5"><h2 className="label-tracked text-xs text-slate">{t.topPromotions}</h2>{analytics?.topPromotions?.length ? <ol className="mt-3 space-y-2 text-sm">{analytics.topPromotions.map((promotion) => <li key={promotion.name} className="flex justify-between gap-3"><span className="truncate font-medium text-ink">{promotion.name}</span><span className="shrink-0 text-slate">{promotion.uses} · {formatCurrency(promotion.discount)}</span></li>)}</ol> : <p className="mt-3 text-sm text-slate">—</p>}</div>
+            </section>
 
             <div className="overflow-x-auto border border-line">
               {orders.length === 0 ? (

@@ -4,12 +4,13 @@ import { Link } from "react-router-dom";
 import React from "react"; 
 import { useState, useEffect } from "react";
 import { useLanguage } from "../context/LanguageContext";
+import { useAuth } from "../context/AuthContext";
 import { formatPrice } from "../lib/formatPrice";
 import { cn } from "../lib/cn";
 import api from "../api/axios";
 const ROLES = {
-  OWNER: "owner",
-  ADMIN: "admin",
+  OWNER: "Manager",
+  ADMIN: "Admin",
 };
 
 const TABS = {
@@ -76,12 +77,13 @@ function OrdersTab() {
   const [error, setError] = useState("");
   const [expandedOrderId, setExpandedOrderId] = useState(null);
   const [updatingId, setUpdatingId] = useState(null);
+  const [withPromotions, setWithPromotions] = useState(false);
 
-  const fetchOrders = async () => {
+  const fetchOrders = React.useCallback(async () => {
     try {
       setLoading(true);
       setError("");
-      const { data } = await api.get("/orders");
+      const { data } = await api.get("/orders", { params: withPromotions ? { withPromotions: true } : {} });
       setOrders(data.orders || []);
     } catch (err) {
       console.error("Error fetching orders:", err);
@@ -89,11 +91,11 @@ function OrdersTab() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [locale, withPromotions]);
 
   useEffect(() => {
     fetchOrders();
-  }, []);
+  }, [fetchOrders]);
 
   const updateStatus = async (orderId, status) => {
     try {
@@ -133,13 +135,24 @@ function OrdersTab() {
 
   if (orders.length === 0) {
     return (
+      <div>
+      <label className="mb-4 flex items-center gap-2 text-sm text-slate">
+        <input type="checkbox" checked={withPromotions} onChange={(event) => setWithPromotions(event.target.checked)} />
+        {locale === "ar" ? "الطلبات التي تحتوي على عروض فقط" : "Orders with promotions"}
+      </label>
       <p className="border border-dashed border-line p-8 text-center text-sm text-slate">
-        {locale === "ar" ? "لا توجد طلبات." : "No orders yet."}
+        {locale === "ar" ? "لا توجد طلبات مطابقة." : "No matching orders."}
       </p>
+      </div>
     );
   }
 
   return (
+    <>
+    <label className="mb-4 flex items-center gap-2 text-sm text-slate">
+      <input type="checkbox" checked={withPromotions} onChange={(event) => setWithPromotions(event.target.checked)} />
+      {locale === "ar" ? "الطلبات التي تحتوي على عروض فقط" : "Orders with promotions"}
+    </label>
     <div className="overflow-x-auto border border-line">
       <table className="w-full min-w-[880px] text-start">
         <thead>
@@ -169,6 +182,7 @@ function OrdersTab() {
                   </td>
                   <td className="px-4 py-3 text-sm font-medium text-ink">
                     #{String(order._id).slice(-8)}
+                    {order.appliedPromotions?.length > 0 && <span className="ms-2 bg-accent px-1.5 py-0.5 text-[10px] font-bold text-ink">{locale === "ar" ? "عرض" : "OFFER"}</span>}
                   </td>
                   <td className="px-4 py-3 text-sm text-ink">
                     {order.customerId?.name || order.customerId?.email || "—"}
@@ -276,6 +290,7 @@ function OrdersTab() {
                             ))}
                           </ul>
                         </div>
+                        {order.appliedPromotions?.length > 0 && <div className="border border-accent/40 bg-accent/10 p-3"><p className="mb-2 text-xs font-bold uppercase tracking-wider">{locale === "ar" ? "العروض المطبقة" : "Applied promotions"}</p><ul className="space-y-2">{order.appliedPromotions.map((promotion, promotionIndex) => <li key={`${promotion.promotionId || promotion.name}-${promotionIndex}`} className="text-sm"><span className="font-semibold">{promotion.name}</span> · {promotion.ruleDescription}<span className="ms-2 text-accent-deep">−{formatPrice(promotion.discountAmount || 0, locale, t("common.currency"))}</span>{promotion.freeItems?.length > 0 && <p className="mt-1 text-xs text-slate">{locale === "ar" ? "قطع مجانية" : "Free items"}: {promotion.freeItems.map((entry) => `${entry.quantity}× ${entry.name} ${entry.size || ""} ${entry.color || ""}`).join(" · ")}</p>}</li>)}</ul></div>}
                       </div>
                     </td>
                   </tr>
@@ -286,6 +301,7 @@ function OrdersTab() {
         </tbody>
       </table>
     </div>
+    </>
   );
 }
 function AffiliateRequestsTab() {
@@ -849,8 +865,8 @@ function UsersManagementTab() {
     </div>
   );
 }
-const TOPS_SIZE_GUIDE_URL = "http://localhost:5173/The-Upper-Body.jpg";
-const PANTS_SIZE_GUIDE_URL = "http://localhost:5173/The-Lower-Body.jpg";
+const TOPS_SIZE_GUIDE_URL = "/The-Upper-Body.jpg";
+const PANTS_SIZE_GUIDE_URL = "/The-Lower-Body.jpg";
 
 const PRODUCT_TYPE_OPTIONS = [
   { value: "t-shirt", labelEn: "T-Shirt", labelAr: "تيشيرت" },
@@ -918,6 +934,9 @@ function ProductForm({ initialData = null, onSave, onCancel }) {
     }
     return buildEmptyStockState(getSizeScaleForType("t-shirt"));
   });
+  const [trackStockByColor, setTrackStockByColor] = useState(Boolean(initialData?.stockByVariant && Object.keys(initialData.stockByVariant).length));
+  const [stockByVariant, setStockByVariant] = useState(() => ({ ...(initialData?.stockByVariant || {}) }));
+  const colorOptions = form.colors.split(",").map((color) => color.trim().toLowerCase()).filter(Boolean);
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
@@ -926,6 +945,7 @@ function ProductForm({ initialData = null, onSave, onCancel }) {
     const nextScale = getSizeScaleForType(nextType);
     setSizeScale(nextScale);
     setStockBySize(buildEmptyStockState(nextScale));
+    setStockByVariant({});
     setBulkQuantity("");
     setForm((prev) => ({ ...prev, productType: nextType }));
   };
@@ -959,6 +979,10 @@ function ProductForm({ initialData = null, onSave, onCancel }) {
     setStockBySize((prev) => ({ ...prev, [size]: e.target.value }));
   };
 
+  const handleVariantStockChange = (size, color) => (event) => {
+    setStockByVariant((previous) => ({ ...previous, [`${size}::${color}`]: event.target.value }));
+  };
+
   const handleBulkModeToggle = (isBulk) => {
     setBulkMode(isBulk);
     if (isBulk) {
@@ -982,6 +1006,8 @@ function ProductForm({ initialData = null, onSave, onCancel }) {
     setImageFiles([]);
     setSizeScale(nextScale);
     setStockBySize(buildEmptyStockState(nextScale));
+    setStockByVariant({});
+    setTrackStockByColor(false);
     setBulkMode(true);
     setBulkQuantity("");
   };
@@ -1000,13 +1026,17 @@ function ProductForm({ initialData = null, onSave, onCancel }) {
       return;
     }
 
-    const activeSizes = sizeScale.filter((size) => Number(stockBySize[size]) > 0);
-    const stockBySizePayload = activeSizes.reduce((acc, size) => {
-      acc[size] = Number(stockBySize[size]) || 0;
-      return acc;
-    }, {});
-    const totalStock = activeSizes.reduce((sum, size) => sum + (Number(stockBySize[size]) || 0), 0);
     const colorsPayload = form.colors.split(",").map((c) => c.trim().toLowerCase()).filter(Boolean);
+    if (trackStockByColor && (!colorsPayload.length || !sizeScale.length)) {
+      setSubmitError(locale === "ar" ? "أضف مقاسًا ولونًا لتحديد مخزون كل تركيبة." : "Add sizes and colors to track variant stock.");
+      return;
+    }
+    const stockByVariantPayload = trackStockByColor ? Object.fromEntries(sizeScale.flatMap((size) => colorsPayload.map((color) => [`${size}::${color}`, Number(stockByVariant[`${size}::${color}`]) || 0])).filter(([, quantity]) => quantity > 0)) : {};
+    const stockBySizePayload = trackStockByColor
+      ? sizeScale.reduce((acc, size) => { const sum = colorsPayload.reduce((value, color) => value + (Number(stockByVariant[`${size}::${color}`]) || 0), 0); if (sum > 0) acc[size] = sum; return acc; }, {})
+      : sizeScale.filter((size) => Number(stockBySize[size]) > 0).reduce((acc, size) => { acc[size] = Number(stockBySize[size]) || 0; return acc; }, {});
+    const totalStock = Object.values(trackStockByColor ? stockByVariantPayload : stockBySizePayload).reduce((sum, quantity) => sum + quantity, 0);
+    const activeSizes = sizeScale.filter((size) => Number(stockBySizePayload[size]) > 0);
 
     const formData = new FormData();
     formData.append("nameEn", form.nameEn.trim());
@@ -1019,6 +1049,7 @@ function ProductForm({ initialData = null, onSave, onCancel }) {
     formData.append("colors", JSON.stringify(colorsPayload));
     formData.append("sizes", JSON.stringify(activeSizes));
     formData.append("stockBySize", JSON.stringify(stockBySizePayload));
+    formData.append("stockByVariant", JSON.stringify(stockByVariantPayload));
     formData.append("stock", String(totalStock));
     formData.append("sizeGuideImageUrl", getSizeGuideUrlForType(form.productType));
     formData.append("isLatestArrival", "true");
@@ -1120,6 +1151,8 @@ function ProductForm({ initialData = null, onSave, onCancel }) {
           {locale === "ar" ? "طريقة تحديد المخزون" : "Stock Entry Method"}
         </p>
 
+        <label className="mb-4 flex items-center gap-2 text-sm font-medium text-ink"><input type="checkbox" checked={trackStockByColor} onChange={(event) => setTrackStockByColor(event.target.checked)} />{locale === "ar" ? "تحديد مخزون منفصل لكل مقاس ولون" : "Track stock separately for each size and color"}</label>
+        {trackStockByColor ? <div className="overflow-x-auto"><table className="min-w-full border border-line text-sm"><thead className="bg-paper-dim"><tr><th className="p-2 text-start">{locale === "ar" ? "المقاس" : "Size"}</th>{colorOptions.map((color) => <th key={color} className="p-2 text-start">{color}</th>)}</tr></thead><tbody>{sizeScale.map((size) => <tr key={size} className="border-t border-line"><th className="p-2 text-start">{size}</th>{colorOptions.map((color) => <td key={color} className="p-2"><input aria-label={`${size} ${color} stock`} type="number" min={0} value={stockByVariant[`${size}::${color}`] || ""} onChange={handleVariantStockChange(size, color)} className="w-20 border border-line bg-paper px-2 py-1.5" /></td>)}</tr>)}</tbody></table></div> : <>
         <div className="flex flex-col gap-2 sm:flex-row sm:gap-6">
           <label className="flex items-center gap-2 text-sm text-ink">
             <input type="radio" name="bulkMode" checked={bulkMode} onChange={() => handleBulkModeToggle(true)} className="h-4 w-4 border border-line text-ink accent-ink" />
@@ -1149,6 +1182,7 @@ function ProductForm({ initialData = null, onSave, onCancel }) {
             ))}
           </div>
         )}
+        </>}
       </div>
 
       <div className="flex justify-end border-t border-line pt-4 gap-2">
@@ -1649,7 +1683,8 @@ function AffiliateLedgerTab() {
 
 export default function ManagerDashboard() {
   const { t, locale } = useLanguage();
-  const currentRole = ROLES.OWNER;
+  const { role } = useAuth();
+  const currentRole = role;
 
   const [activeTab, setActiveTab] = useState(TABS.ORDERS);
   const permittedTabs = PERMITTED_TABS[currentRole] || [];
@@ -1661,6 +1696,12 @@ export default function ManagerDashboard() {
   }, [currentRole, permittedTabs, activeTab]);
 
   return (
+    currentRole !== ROLES.OWNER && currentRole !== ROLES.ADMIN ? (
+      <div className="mx-auto max-w-3xl px-4 py-20 text-center sm:px-6 lg:px-8">
+        <h1 className="font-display text-2xl font-extrabold tracking-tightest">{t("admin.restrictedTitle")}</h1>
+        <p className="mt-2 text-sm text-slate">{t("admin.restrictedBody")}</p>
+      </div>
+    ) :
     <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>

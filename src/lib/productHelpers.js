@@ -17,6 +17,13 @@ export const PRODUCT_TYPE_TO_CATEGORY = {
   pants: "pants",
 };
 
+export function getPromotionHint(promotion, locale = "en") {
+  const tier = (promotion?.tiers || []).slice().sort((a, b) => b.minQty - a.minQty)[0] || {};
+  if (promotion?.type === "BUY_X_GET_Y_FREE") return locale === "ar" ? `اشتري ${tier.minQty} واحصل على ${tier.getQty} مجانًا` : `Buy ${tier.minQty} get ${tier.getQty} free`;
+  if (promotion?.type === "QUANTITY_PERCENT_DISCOUNT") return locale === "ar" ? `خصم ${tier.percent}% عند شراء ${tier.minQty} فأكثر` : `${tier.percent}% off when you buy ${tier.minQty}+`;
+  return locale === "ar" ? `اشترِ ${tier.minQty} بسعر ${tier.fixedPrice}` : `Buy ${tier.minQty} for ${tier.fixedPrice}`;
+}
+
 const COLOR_LOOKUP = {
   black: { swatch: "#1C1C1E", nameEn: "Black", nameAr: "أسود" },
   white: { swatch: "#F5F5F4", nameEn: "White", nameAr: "أبيض" },
@@ -62,19 +69,37 @@ export function mapApiProductToUiProduct(apiProduct) {
     colors: Array.isArray(apiProduct.colors) ? apiProduct.colors.map(resolveColor) : [],
     isNew: Boolean(apiProduct.isLatestArrival),
     stockBySize: apiProduct.stockBySize || {},
+    stockByVariant: apiProduct.stockByVariant || {},
     stock: apiProduct.stock ?? 0,
     // The actual fix: read the real field name, keep it as an array.
     imageUrls: Array.isArray(apiProduct.imageUrls) ? apiProduct.imageUrls : [],
     sizeGuideImageUrl: apiProduct.sizeGuideImageUrl || null,
+    promotions: apiProduct.promotions || [],
+    hasActivePromotion: Boolean(apiProduct.hasActivePromotion || apiProduct.promotions?.length),
+    promotionHint: apiProduct.promotionHint || apiProduct.promotions?.[0]?.hint || null,
   };
 }
 
-export function getStockForSize(product, size) {
+export function getStockForSize(product, size, color) {
+  if (product?.stockByVariant) {
+    const variants = product.stockByVariant instanceof Map ? Object.fromEntries(product.stockByVariant) : product.stockByVariant;
+    const entries = Object.entries(variants);
+    if (entries.length) {
+      return entries.reduce((sum, [key, stock]) => {
+        const [variantSize, variantColor] = key.split("::");
+        return sum + (variantSize === String(size || "*") && (!color || variantColor === String(color).toLowerCase()) ? Number(stock) || 0 : 0);
+      }, 0);
+    }
+  }
   if (!product?.stockBySize) return 0;
   return product.stockBySize[size] ?? 0;
 }
 
 export function getTotalStock(product) {
+  if (product?.stockByVariant) {
+    const variants = product.stockByVariant instanceof Map ? Object.fromEntries(product.stockByVariant) : product.stockByVariant;
+    if (Object.keys(variants).length) return Object.values(variants).reduce((sum, value) => sum + (Number(value) || 0), 0);
+  }
   if (!product?.stockBySize) return 0;
   return Object.values(product.stockBySize).reduce((sum, n) => sum + n, 0);
 }

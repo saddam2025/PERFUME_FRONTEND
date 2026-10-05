@@ -14,6 +14,23 @@ export default function UserProfile() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [cancelingOrderId, setCancelingOrderId] = useState(null);
+  const [cancelError, setCancelError] = useState("");
+
+  const cancelOrder = async (orderId) => {
+    setCancelingOrderId(orderId);
+    setCancelError("");
+    try {
+      const { data } = await api.put(`/orders/${orderId}/cancel`);
+      setOrders((current) => current.map((order) => (
+        (order._id || order.id) === orderId ? { ...order, ...data.order, status: "Cancelled" } : order
+      )));
+    } catch (err) {
+      setCancelError(err.response?.data?.message || (locale === "ar" ? "تعذر إلغاء الطلب." : "Could not cancel this order."));
+    } finally {
+      setCancelingOrderId(null);
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -101,6 +118,8 @@ export default function UserProfile() {
           </h2>
         </div>
 
+        {cancelError && <p role="alert" className="text-sm text-red-700">{cancelError}</p>}
+
         {/* Loading State */}
         {loading && (
           <div className="flex h-64 flex-col items-center justify-center gap-3 rounded-2xl border border-line bg-paper-dim">
@@ -155,6 +174,9 @@ export default function UserProfile() {
                     <th scope="col" className="whitespace-nowrap px-6 py-4 text-start font-semibold">
                       {t("order.statusTitle") || "Status"}
                     </th>
+                    <th scope="col" className="whitespace-nowrap px-6 py-4 text-start font-semibold">
+                      {locale === "ar" ? "إجراء" : "Action"}
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line bg-paper">
@@ -169,11 +191,26 @@ export default function UserProfile() {
                       <td className="whitespace-nowrap px-6 py-4 text-slate">
                         {formatDate(order.createdAt || order.date)}
                       </td>
-                      <td className="whitespace-nowrap px-6 py-4 font-semibold text-ink">
+                      <td className="px-6 py-4 font-semibold text-ink">
                         {formatPrice(order.totalOrderPrice ?? order.total, locale, t("common.currency"))}
+                        {order.appliedPromotions?.length > 0 && <div className="mt-1 space-y-1 text-[11px] font-normal text-accent-deep">{order.appliedPromotions.map((promotion, index) => <p key={`${promotion.promotionId || promotion.name}-${index}`}>{promotion.name}: {promotion.ruleDescription} (−{formatPrice(promotion.discountAmount || 0, locale, t("common.currency"))}){promotion.freeItems?.length > 0 ? ` · ${locale === "ar" ? "مجاني" : "Free"}: ${promotion.freeItems.map((item) => `${item.quantity}× ${item.name}`).join(", ")}` : ""}</p>)}</div>}
                       </td>
                       <td className="whitespace-nowrap px-6 py-4">
                         {getStatusBadge(order.status)}
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4">
+                        {user?.role === "Customer" && order.status === "Pending" && (
+                          <button
+                            type="button"
+                            onClick={() => cancelOrder(order._id || order.id)}
+                            disabled={cancelingOrderId === (order._id || order.id)}
+                            className="text-sm font-semibold text-red-700 underline underline-offset-2 disabled:opacity-50"
+                          >
+                            {cancelingOrderId === (order._id || order.id)
+                              ? (locale === "ar" ? "جارٍ الإلغاء..." : "Cancelling...")
+                              : (locale === "ar" ? "إلغاء الطلب" : "Cancel order")}
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}

@@ -11,6 +11,7 @@ import { useLanguage } from "../../context/LanguageContext";
 import { useCart } from "../../context/CartContext";
 import { formatPrice } from "../../lib/formatPrice";
 import { getTotalStock, getStockForSize } from "../../lib/productHelpers";
+import { getPromotionHint } from "../../lib/productHelpers";
 
 // FIX Bug 3: compute once, fallback to '' so concatenation never yields "undefined/...".
 const BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api").replace('/api', '');
@@ -24,8 +25,8 @@ export default function ProductCard({ product }) {
   const totalStock = getTotalStock(product);
   const isLowStock = totalStock > 0 && totalStock <= 10;
   const onSale = Boolean(product.compareAtPrice);
-  const sizeStock = selectedSize ? getStockForSize(product, selectedSize) : 0;
-  const defaultColor = product.colors?.[0];
+  const defaultColor = product.colors?.find((color) => getStockForSize(product, selectedSize, color.nameEn) > 0) || product.colors?.[0];
+  const sizeStock = selectedSize ? getStockForSize(product, selectedSize, defaultColor?.nameEn) : 0;
 
   const primaryImage = product.imageUrls?.[0] || null;  
   const handleAddToCart = () => {
@@ -59,6 +60,11 @@ export default function ProductCard({ product }) {
             )}
           </div>
         )}
+        {product.hasActivePromotion && (
+          <span className="label-tracked absolute top-3 end-3 bg-accent px-2 py-1 text-ink">
+            {locale === "ar" ? "عرض خاص" : "Special offer"}
+          </span>
+        )}
 
         {isLowStock && (
           <span className="label-tracked absolute bottom-3 start-3 bg-paper/90 px-2 py-1 text-accent-deep">
@@ -71,6 +77,7 @@ export default function ProductCard({ product }) {
         <Link to={`/product/${product._id || product.id}`}>
           <h3 className="text-sm font-medium text-ink hover:text-slate">{name}</h3>
         </Link>
+        {product.promotions?.[0] && <p className="mt-1 text-xs font-semibold text-accent-deep">{getPromotionHint(product.promotions[0], locale)}</p>}
 
         <div className="mt-1.5 flex items-baseline gap-2">
           <span className="text-sm font-semibold text-ink">
