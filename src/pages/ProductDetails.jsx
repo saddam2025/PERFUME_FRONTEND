@@ -235,7 +235,7 @@ function getSwatchColor(colorName) {
             {name}
           </h1>
 
-          <div className="mt-3 flex items-baseline gap-3">
+          <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <span className="text-xl font-semibold text-ink">
               {formatPrice(product.price, locale, t("common.currency"))}
             </span>

@@ -79,7 +79,7 @@ export default function ProductCard({ product }) {
         </Link>
         {product.promotions?.[0] && <p className="mt-1 text-xs font-semibold text-accent-deep">{getPromotionHint(product.promotions[0], locale)}</p>}
 
-        <div className="mt-1.5 flex items-baseline gap-2">
+        <div className="mt-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-1">
           <span className="text-sm font-semibold text-ink">
             {formatPrice(product.price, locale, t("common.currency"))}
           </span>
