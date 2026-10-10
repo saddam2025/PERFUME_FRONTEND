@@ -22,7 +22,7 @@ export default function Home() {
         const results = await Promise.all(
           categories.map(async (cat) => {
             const productType = CATEGORY_TO_PRODUCT_TYPE[cat];
-            const { data } = await api.get("/products", { params: { type: productType } });
+            const { data } = await api.get("/products", { params: { category: productType, limit: 1 } });
             const first = data?.data?.products?.[0];
             return first ? mapApiProductToUiProduct(first) : null;
           })
