@@ -12,21 +12,24 @@ export default function Home() {
 
   const [featured, setFeatured] = useState([]);
 
-  // One representative product per category (t-shirt / jacket / hoodie),
-  // fetched live instead of read from the old mock catalog.
+  // One unique representative product per category, fetched live.
   useEffect(() => {
     let cancelled = false;
 
     async function fetchFeatured() {
       try {
-        const results = await Promise.all(
-          categories.map(async (cat) => {
-            const productType = CATEGORY_TO_PRODUCT_TYPE[cat];
-            const { data } = await api.get("/products", { params: { category: productType, limit: 1 } });
-            const first = data?.data?.products?.[0];
-            return first ? mapApiProductToUiProduct(first) : null;
-          })
-        );
+        const { data } = await api.get("/products", { params: { limit: 500 } });
+        const products = data?.data?.products || [];
+        const usedIds = new Set();
+        const results = categories.flatMap((cat) => {
+          const productType = CATEGORY_TO_PRODUCT_TYPE[cat];
+          const match = products.find((product) =>
+            product.category === productType && !usedIds.has(String(product._id))
+          );
+          if (!match) return [];
+          usedIds.add(String(match._id));
+          return [mapApiProductToUiProduct(match)];
+        });
         if (!cancelled) {
           setFeatured(results.filter(Boolean));
         }
