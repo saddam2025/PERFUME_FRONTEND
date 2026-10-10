@@ -1,5 +1,5 @@
 // frontend/src/pages/Checkout.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { CreditCard, Truck, Check } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
@@ -7,6 +7,7 @@ import { cn } from "../lib/cn";
 import { formatPrice } from "../lib/formatPrice";
 import api from "../api/axios";
 import { useCart } from "../context/CartContext";
+import { useAuth } from "../context/AuthContext";
 
 function resolveProductId(item) {
   return (
@@ -27,6 +28,7 @@ function resolveQuantity(item) {
 
 export default function Checkout() {
   const { t, locale } = useLanguage();
+  const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
   const {
@@ -40,12 +42,29 @@ export default function Checkout() {
     serverPricing,
     clearCart,
   } = useCart();
-  const [formData, setFormData] = useState({ name: "", address: "", phone: "" });
+  const [formData, setFormData] = useState({ name: "", address: "", phone: "", city: "" });
+  const shippingFormTouched = useRef(false);
   const [paymentMethod, setPaymentMethod] = useState("cod");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [orderResult, setOrderResult] = useState(null);
+
+  useEffect(() => {
+    if (!isAuthenticated) return undefined;
+    let cancelled = false;
+    api.get("/auth/me").then(({ data }) => {
+      const saved = data?.user?.shippingInfo;
+      if (cancelled || !saved || shippingFormTouched.current) return;
+      setFormData({
+        name: saved.name || "",
+        address: saved.address || "",
+        phone: saved.phone || "",
+        city: saved.city || "",
+      });
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (items.length === 0 && !isSubmitting && !orderPlaced) {
@@ -190,7 +209,7 @@ export default function Checkout() {
               className="w-full border border-line bg-paper px-3 py-2 text-sm focus:border-ink outline-none"
               required
               value={formData.name}
-              onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
+              onChange={(e) => { shippingFormTouched.current = true; setFormData((prev) => ({ ...prev, name: e.target.value })); }}
             />
           </div>
           <div>
@@ -202,7 +221,7 @@ export default function Checkout() {
               className="w-full border border-line bg-paper px-3 py-2 text-sm focus:border-ink outline-none"
               required
               value={formData.address}
-              onChange={(e) => setFormData((prev) => ({ ...prev, address: e.target.value }))}
+              onChange={(e) => { shippingFormTouched.current = true; setFormData((prev) => ({ ...prev, address: e.target.value })); }}
             />
           </div>
           <div>
@@ -214,7 +233,18 @@ export default function Checkout() {
               className="w-full border border-line bg-paper px-3 py-2 text-sm focus:border-ink outline-none"
               required
               value={formData.phone}
-              onChange={(e) => setFormData((prev) => ({ ...prev, phone: e.target.value }))}
+              onChange={(e) => { shippingFormTouched.current = true; setFormData((prev) => ({ ...prev, phone: e.target.value })); }}
+            />
+          </div>
+          <div>
+            <label className="block text-xs uppercase font-semibold text-slate mb-1">{t("cart.city")}</label>
+            <input
+              type="text"
+              className="w-full border border-line bg-paper px-3 py-2 text-sm focus:border-ink outline-none"
+              required
+              placeholder={t("cart.cityPlaceholder")}
+              value={formData.city}
+              onChange={(e) => { shippingFormTouched.current = true; setFormData((prev) => ({ ...prev, city: e.target.value })); }}
             />
           </div>
 

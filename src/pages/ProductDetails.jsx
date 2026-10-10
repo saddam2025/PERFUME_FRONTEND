@@ -118,56 +118,31 @@ export default function ProductDetails() {
 
   const name = locale === "ar" ? (product.nameAr || product.nameKey) : (product.nameEn || product.nameKey);
   const description = locale === "ar" ? (product.descriptionAr || product.descriptionKey) : (product.descriptionEn || product.descriptionKey);
-  const onSale = Boolean(product.compareAtPrice);
+  const onSale = Number(product.compareAtPrice) > Number(product.price);
   const totalStock = getTotalStock(product);
+  const isSoldOut = totalStock <= 0;
   const isLowStockOverall = totalStock > 0 && totalStock <= 10;
-  const stockForSelectedSize = selectedSize ? getStockForSize(product, selectedSize, selectedColor?.nameEn) : null;
+  const stockForSelectedSize = selectedSize
+    ? getStockForSize(product, selectedSize, selectedColor)
+    : product.sizes?.length
+      ? null
+      : getStockForSize(product, null, selectedColor);
   const detailsList = t("pdp.detailsList") || [];
   const nextPromotionTier = (product.promotions || []).flatMap((promotion) =>
     (promotion.tiers || []).map((tier) => ({ promotion, tier }))
   ).filter(({ tier }) => Number(tier.minQty) > quantity).sort((a, b) => a.tier.minQty - b.tier.minQty)[0];
 
-  // Maps a free-text color name (as typed in the Manager Dashboard's
-// comma-separated colors field) to an actual swatch color. Falls back to
-// a neutral mid-gray for any name not in this list, rather than silently
-// rendering nothing or crashing.
-const COLOR_SWATCH_MAP = {
-  black: "#111111",
-  white: "#ffffff",
-  stone: "#a8a29e",
-  beige: "#e8dcc8",
-  navy: "#1f2a44",
-  blue: "#2563eb",
-  grey: "#9ca3af",
-  gray: "#9ca3af",
-  olive: "#6b7a3a",
-  green: "#16a34a",
-  brown: "#6b4a34",
-  tan: "#d2b48c",
-  red: "#dc2626",
-  burgundy: "#7f1d1d",
-  charcoal: "#36454f",
-  cream: "#f5f0e6",
-  khaki: "#bdb76b",
-  pink: "#ec4899",
-  yellow: "#eab308",
-  orange: "#ea580c",
-  purple: "#7c3aed",
-};
-
-function getSwatchColor(colorName) {
-  return COLOR_SWATCH_MAP[colorName] || "#9ca3af";
-}
   // FIX Bug 4: use BASE_URL constant so we never get "undefined/uploads/...".
   const galleryImages = product.imageUrls && product.imageUrls.length > 0
     ? product.imageUrls.map(url => BASE_URL + url)
     : [];
 
   const handleAddToCart = () => {
-    if (!selectedSize) {
+    if (product.sizes?.length && !selectedSize) {
       setSizeError(true);
       return;
     }
+    if (stockForSelectedSize <= 0) return;
     addItem(product, selectedSize, selectedColor, quantity);
     setJustAdded(true);
     setTimeout(() => setJustAdded(false), 1800);
@@ -228,6 +203,9 @@ function getSwatchColor(colorName) {
             )}
             {onSale && (
               <span className="label-tracked bg-accent px-2 py-1 text-ink">{t("product.sale")}</span>
+            )}
+            {isSoldOut && (
+              <span className="label-tracked bg-ink px-2 py-1 text-paper">{t("product.soldOut")}</span>
             )}
           </div>
 
@@ -312,7 +290,7 @@ function getSwatchColor(colorName) {
 
               <div className="mt-3 flex flex-wrap gap-2">
                 {product.sizes.map((size) => {
-                  const stock = getStockForSize(product, size, selectedColor?.nameEn);
+                  const stock = getStockForSize(product, size, selectedColor);
                   const disabled = stock <= 0;
                   return (
                     <button
@@ -385,7 +363,7 @@ function getSwatchColor(colorName) {
             <button
               type="button"
               onClick={handleAddToCart}
-              disabled={stockForSelectedSize === 0 && selectedSize !== null}
+              disabled={isSoldOut || stockForSelectedSize === 0}
               className={cn(
                 "flex flex-1 items-center justify-center gap-2 text-sm font-semibold uppercase tracking-wide transition-colors",
                 justAdded
@@ -400,7 +378,7 @@ function getSwatchColor(colorName) {
                   {t("product.addedToCart")}
                 </>
               ) : (
-                t("product.addToCart")
+                isSoldOut ? t("product.soldOut") : t("product.addToCart")
               )}
             </button>
           </div>

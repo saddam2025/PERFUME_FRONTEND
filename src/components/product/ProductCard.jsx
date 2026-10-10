@@ -5,7 +5,7 @@
 //   The `|| primaryImage` fallback never fires because "undefined/..." is truthy.
 //   Fix: resolve BASE_URL once with a safe fallback to empty string.
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Plus, Image as ImageIcon } from "lucide-react";
 import { useLanguage } from "../../context/LanguageContext";
 import { useCart } from "../../context/CartContext";
@@ -19,19 +19,28 @@ const BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/ap
 export default function ProductCard({ product }) {
   const { t, locale } = useLanguage();
   const { addItem } = useCart();
+  const navigate = useNavigate();
   const [selectedSize, setSelectedSize] = useState(product.sizes?.[0]);
+  const [selectedColor, setSelectedColor] = useState(product.colors?.[0] || null);
+  const [justAdded, setJustAdded] = useState(false);
 
   const name = locale === "ar" ? (product.nameAr || product.nameKey) : (product.nameEn || product.nameKey);
   const totalStock = getTotalStock(product);
+  const isSoldOut = totalStock <= 0;
   const isLowStock = totalStock > 0 && totalStock <= 10;
-  const onSale = Boolean(product.compareAtPrice);
-  const defaultColor = product.colors?.find((color) => getStockForSize(product, selectedSize, color.nameEn) > 0) || product.colors?.[0];
-  const sizeStock = selectedSize ? getStockForSize(product, selectedSize, defaultColor?.nameEn) : 0;
+  const onSale = Number(product.compareAtPrice) > Number(product.price);
+  const sizeStock = getStockForSize(product, selectedSize, selectedColor);
 
   const primaryImage = product.imageUrls?.[0] || null;  
   const handleAddToCart = () => {
-    if (sizeStock <= 0 || !selectedSize) return;
-    addItem(product, selectedSize, defaultColor);
+    if ((product.sizes?.length && !selectedSize) || (product.colors?.length && !selectedColor)) {
+      navigate(`/product/${product._id || product.id}`);
+      return;
+    }
+    if (sizeStock <= 0) return;
+    addItem(product, selectedSize || null, selectedColor);
+    setJustAdded(true);
+    window.setTimeout(() => setJustAdded(false), 1800);
   };
 
   return (
@@ -66,7 +75,13 @@ export default function ProductCard({ product }) {
           </span>
         )}
 
-        {isLowStock && (
+        {isSoldOut && (
+          <span className="label-tracked absolute bottom-3 start-3 bg-ink px-2 py-1 text-paper">
+            {t("product.soldOut")}
+          </span>
+        )}
+
+        {!isSoldOut && isLowStock && (
           <span className="label-tracked absolute bottom-3 start-3 bg-paper/90 px-2 py-1 text-accent-deep">
             {t("product.lowStock")}
           </span>
@@ -108,14 +123,32 @@ export default function ProductCard({ product }) {
           ))}
         </div>
 
+        {product.colors?.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2" aria-label={t("pdp.color")}>
+            {product.colors.map((color) => (
+              <button
+                key={color.id}
+                type="button"
+                onClick={() => setSelectedColor(color)}
+                title={locale === "ar" ? color.nameAr : color.nameEn}
+                aria-label={locale === "ar" ? color.nameAr : color.nameEn}
+                aria-pressed={selectedColor?.id === color.id}
+                className={`h-6 w-6 rounded-full border-2 ${selectedColor?.id === color.id ? "border-ink" : "border-transparent"}`}
+              >
+                <span className="block h-full w-full rounded-full border border-line/60" style={{ backgroundColor: color.swatch }} />
+              </button>
+            ))}
+          </div>
+        )}
+
         <button
           type="button"
           onClick={handleAddToCart}
-          disabled={sizeStock <= 0}
+          disabled={isSoldOut || sizeStock <= 0}
           className="mt-4 mt-auto flex w-full items-center justify-center gap-2 border border-ink bg-ink py-2.5 text-xs font-semibold uppercase tracking-wide text-paper transition-colors hover:bg-ink/85 disabled:cursor-not-allowed disabled:border-line disabled:bg-line disabled:text-slate-light"
         >
           <Plus size={14} strokeWidth={2} />
-          {t("product.addToCart")}
+          {justAdded ? t("product.addedToCart") : isSoldOut ? t("product.soldOut") : sizeStock <= 0 ? t("product.outOfStock") : t("product.addToCart")}
         </button>
       </div>
     </div>

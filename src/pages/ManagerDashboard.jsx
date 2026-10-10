@@ -2,12 +2,13 @@
 import { Package, Users, Boxes, Check, X, Pencil, Tag, Plus, Trash2, Lock, ChevronDown, ChevronUp, BarChart3, Save } from "lucide-react";
 import { Link } from "react-router-dom";
 import React from "react"; 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLanguage } from "../context/LanguageContext";
 import { useAuth } from "../context/AuthContext";
 import { formatPrice } from "../lib/formatPrice";
 import { cn } from "../lib/cn";
 import api from "../api/axios";
+import { CLOTHING_COLORS, getColorKey, normalizeColorOption } from "../constants/clothingColors";
 const ROLES = {
   OWNER: "Manager",
   ADMIN: "Admin",
@@ -894,7 +895,7 @@ function buildEmptyStockState(sizeScale) {
 }
 
 function ProductForm({ initialData = null, onSave, onCancel }) {
-  const { locale } = useLanguage();
+  const { locale, t } = useLanguage();
   const [allCollections, setAllCollections] = useState([]);
 
   useEffect(() => {
@@ -917,7 +918,6 @@ function ProductForm({ initialData = null, onSave, onCancel }) {
     productType: initialData?.category || "t-shirt",
     price: initialData?.price || "",
     compareAtPrice: initialData?.compareAtPrice || "",
-    colors: initialData?.colors ? initialData.colors.join(", ") : "",
     baseProfitPerPiece: initialData?.baseProfitPerPiece || "",
     affiliateCommission: initialData?.affiliateCommission || "",
     productDiscount: initialData?.productDiscount || "",
@@ -936,9 +936,17 @@ function ProductForm({ initialData = null, onSave, onCancel }) {
   });
   const [trackStockByColor, setTrackStockByColor] = useState(Boolean(initialData?.stockByVariant && Object.keys(initialData.stockByVariant).length));
   const [stockByVariant, setStockByVariant] = useState(() => ({ ...(initialData?.stockByVariant || {}) }));
-  const colorOptions = form.colors.split(",").map((color) => color.trim().toLowerCase()).filter(Boolean);
+  const [selectedColors, setSelectedColors] = useState(() => (initialData?.colors || []).map(normalizeColorOption));
+  const [colorSearch, setColorSearch] = useState("");
+  const [customColorName, setCustomColorName] = useState("");
+  const [customColorHex, setCustomColorHex] = useState("#9CA3AF");
+  const colorOptions = selectedColors.map(getColorKey);
+  const filteredColors = CLOTHING_COLORS.filter((color) =>
+    `${color.nameEn} ${color.nameAr} ${(color.aliases || []).join(" ")}`.toLocaleLowerCase().includes(colorSearch.trim().toLocaleLowerCase())
+  );
 
   const [submitting, setSubmitting] = useState(false);
+  const submitInFlight = useRef(false);
   const [submitError, setSubmitError] = useState(null);
 
   const handleProductTypeChange = (nextType) => {
@@ -952,6 +960,24 @@ function ProductForm({ initialData = null, onSave, onCancel }) {
 
   const handleFieldChange = (field) => (e) => {
     setForm((prev) => ({ ...prev, [field]: e.target.value }));
+  };
+
+  const toggleColor = (color) => {
+    const normalized = normalizeColorOption(color);
+    setSelectedColors((previous) => previous.some((selected) => getColorKey(selected) === getColorKey(normalized))
+      ? previous.filter((selected) => getColorKey(selected) !== getColorKey(normalized))
+      : [...previous, normalized]);
+  };
+
+  const addCustomColor = () => {
+    const name = customColorName.trim() || colorSearch.trim();
+    if (!name) return;
+    const customColor = normalizeColorOption({ name, hex: customColorHex });
+    setSelectedColors((previous) => previous.some((selected) => getColorKey(selected) === getColorKey(customColor))
+      ? previous
+      : [...previous, customColor]);
+    setCustomColorName("");
+    setColorSearch("");
   };
 
   const toggleCollection = (collectionId) => {
@@ -1000,9 +1026,11 @@ function ProductForm({ initialData = null, onSave, onCancel }) {
     const nextScale = getSizeScaleForType("t-shirt");
     setForm({
       nameEn: "", nameAr: "", descriptionEn: "", descriptionAr: "",
-      productType: "t-shirt", price: "", compareAtPrice: "", colors: "",
+      productType: "t-shirt", price: "", compareAtPrice: "",
       baseProfitPerPiece: "", affiliateCommission: "", productDiscount: "", collections: []
     });
+    setSelectedColors([]);
+    setColorSearch("");
     setImageFiles([]);
     setSizeScale(nextScale);
     setStockBySize(buildEmptyStockState(nextScale));
@@ -1014,6 +1042,7 @@ function ProductForm({ initialData = null, onSave, onCancel }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submitInFlight.current) return;
     setSubmitError(null);
 
     if (!form.nameEn.trim() || !form.nameAr.trim() || !form.price) {
@@ -1026,14 +1055,19 @@ function ProductForm({ initialData = null, onSave, onCancel }) {
       return;
     }
 
-    const colorsPayload = form.colors.split(",").map((c) => c.trim().toLowerCase()).filter(Boolean);
+    if (form.compareAtPrice && Number(form.compareAtPrice) <= Number(form.price)) {
+      setSubmitError(t("admin.originalPriceMustExceed"));
+      return;
+    }
+
+    const colorsPayload = selectedColors.map((color) => ({ name: color.nameEn, nameEn: color.nameEn, nameAr: color.nameAr, hex: color.hex || color.swatch }));
     if (trackStockByColor && (!colorsPayload.length || !sizeScale.length)) {
       setSubmitError(locale === "ar" ? "أضف مقاسًا ولونًا لتحديد مخزون كل تركيبة." : "Add sizes and colors to track variant stock.");
       return;
     }
-    const stockByVariantPayload = trackStockByColor ? Object.fromEntries(sizeScale.flatMap((size) => colorsPayload.map((color) => [`${size}::${color}`, Number(stockByVariant[`${size}::${color}`]) || 0])).filter(([, quantity]) => quantity > 0)) : {};
+    const stockByVariantPayload = trackStockByColor ? Object.fromEntries(sizeScale.flatMap((size) => colorOptions.map((color) => [`${size}::${color}`, Number(stockByVariant[`${size}::${color}`]) || 0])).filter(([, quantity]) => quantity > 0)) : {};
     const stockBySizePayload = trackStockByColor
-      ? sizeScale.reduce((acc, size) => { const sum = colorsPayload.reduce((value, color) => value + (Number(stockByVariant[`${size}::${color}`]) || 0), 0); if (sum > 0) acc[size] = sum; return acc; }, {})
+      ? sizeScale.reduce((acc, size) => { const sum = colorOptions.reduce((value, color) => value + (Number(stockByVariant[`${size}::${color}`]) || 0), 0); if (sum > 0) acc[size] = sum; return acc; }, {})
       : sizeScale.filter((size) => Number(stockBySize[size]) > 0).reduce((acc, size) => { acc[size] = Number(stockBySize[size]) || 0; return acc; }, {});
     const totalStock = Object.values(trackStockByColor ? stockByVariantPayload : stockBySizePayload).reduce((sum, quantity) => sum + quantity, 0);
     const activeSizes = sizeScale.filter((size) => Number(stockBySizePayload[size]) > 0);
@@ -1062,6 +1096,7 @@ function ProductForm({ initialData = null, onSave, onCancel }) {
       formData.append("images", file);
     });
 
+    submitInFlight.current = true;
     setSubmitting(true);
     try {
       if (initialData) {
@@ -1075,6 +1110,7 @@ function ProductForm({ initialData = null, onSave, onCancel }) {
     } catch (err) {
       setSubmitError(err.response?.data?.message || err.message || (locale === "ar" ? "حدث خطأ أثناء الحفظ." : "Something went wrong saving."));
     } finally {
+      submitInFlight.current = false;
       setSubmitting(false);
     }
   };
@@ -1120,7 +1156,30 @@ function ProductForm({ initialData = null, onSave, onCancel }) {
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <input type="text" placeholder={locale === "ar" ? "الألوان (مفصولة بفاصلة) مثال: black, stone" : "Colors (comma-separated) e.g. black, stone"} value={form.colors} onChange={handleFieldChange("colors")} className="border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-ink" />
+        <div className="space-y-3 border border-line bg-paper p-3">
+          <label className="block text-xs font-semibold text-slate">{t("admin.colorSearchTitle")}
+            <input type="search" value={colorSearch} onChange={(event) => setColorSearch(event.target.value)} placeholder={t("admin.colorSearchPlaceholder")} className="mt-1 w-full border border-line bg-paper px-3 py-2 text-sm text-ink" />
+          </label>
+          <div className="max-h-44 overflow-y-auto border border-line">
+            {filteredColors.map((color) => {
+              const selected = selectedColors.some((item) => getColorKey(item) === getColorKey(color));
+              return <button key={color.nameEn} type="button" onClick={() => toggleColor(color)} aria-pressed={selected} className="flex w-full items-center gap-2 px-3 py-2 text-start text-sm hover:bg-paper-dim">
+                <span className="h-5 w-5 shrink-0 rounded-full border border-line" style={{ backgroundColor: color.hex }} />
+                <span>{locale === "ar" ? color.nameAr : color.nameEn}</span>{selected && <Check size={14} className="ms-auto" />}
+              </button>;
+            })}
+            {colorSearch.trim() && filteredColors.length === 0 && <button type="button" onClick={() => setCustomColorName(colorSearch.trim())} className="w-full px-3 py-2 text-start text-sm font-semibold text-accent-deep">{t("admin.addCustomColor")}: {colorSearch.trim()}</button>}
+          </div>
+          {colorSearch.trim() && filteredColors.length === 0 && <div className="flex flex-wrap items-end gap-2">
+            <label className="min-w-36 flex-1 text-xs text-slate">{t("admin.customColorName")}<input value={customColorName} onChange={(event) => setCustomColorName(event.target.value)} className="mt-1 w-full border border-line px-2 py-1.5 text-sm text-ink" /></label>
+            <label className="text-xs text-slate">{t("admin.customColorHex")}<input type="color" value={customColorHex} onChange={(event) => setCustomColorHex(event.target.value)} className="mt-1 block h-9 w-12 border border-line bg-paper p-1" /></label>
+            <button type="button" onClick={addCustomColor} className="bg-ink px-3 py-2 text-xs font-semibold text-paper">{t("admin.addColor")}</button>
+          </div>}
+          {selectedColors.length > 0 && <div className="flex flex-wrap gap-2">{selectedColors.map((color) => <span key={getColorKey(color)} className="inline-flex items-center gap-2 border border-line px-2 py-1 text-xs">
+            <span className="h-4 w-4 rounded-full border border-line" style={{ backgroundColor: color.swatch }} />{locale === "ar" ? color.nameAr : color.nameEn}
+            <button type="button" onClick={() => setSelectedColors((previous) => previous.filter((item) => getColorKey(item) !== getColorKey(color)))} aria-label={t("admin.removeColor", { color: locale === "ar" ? color.nameAr : color.nameEn })} className="font-bold">×</button>
+          </span>)}</div>}
+        </div>
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-medium text-slate">
             {locale === "ar" ? "صور المنتج (من الجهاز)" : "Product Images (from device)"}
@@ -1152,7 +1211,7 @@ function ProductForm({ initialData = null, onSave, onCancel }) {
         </p>
 
         <label className="mb-4 flex items-center gap-2 text-sm font-medium text-ink"><input type="checkbox" checked={trackStockByColor} onChange={(event) => setTrackStockByColor(event.target.checked)} />{locale === "ar" ? "تحديد مخزون منفصل لكل مقاس ولون" : "Track stock separately for each size and color"}</label>
-        {trackStockByColor ? <div className="overflow-x-auto"><table className="min-w-full border border-line text-sm"><thead className="bg-paper-dim"><tr><th className="p-2 text-start">{locale === "ar" ? "المقاس" : "Size"}</th>{colorOptions.map((color) => <th key={color} className="p-2 text-start">{color}</th>)}</tr></thead><tbody>{sizeScale.map((size) => <tr key={size} className="border-t border-line"><th className="p-2 text-start">{size}</th>{colorOptions.map((color) => <td key={color} className="p-2"><input aria-label={`${size} ${color} stock`} type="number" min={0} value={stockByVariant[`${size}::${color}`] || ""} onChange={handleVariantStockChange(size, color)} className="w-20 border border-line bg-paper px-2 py-1.5" /></td>)}</tr>)}</tbody></table></div> : <>
+        {trackStockByColor ? <div className="overflow-x-auto"><table className="min-w-full border border-line text-sm"><thead className="bg-paper-dim"><tr><th className="p-2 text-start">{locale === "ar" ? "المقاس" : "Size"}</th>{selectedColors.map((color, index) => <th key={colorOptions[index]} className="p-2 text-start">{locale === "ar" ? color.nameAr : color.nameEn}</th>)}</tr></thead><tbody>{sizeScale.map((size) => <tr key={size} className="border-t border-line"><th className="p-2 text-start">{size}</th>{colorOptions.map((color) => <td key={color} className="p-2"><input aria-label={`${size} ${color} stock`} type="number" min={0} value={stockByVariant[`${size}::${color}`] || ""} onChange={handleVariantStockChange(size, color)} className="w-20 border border-line bg-paper px-2 py-1.5" /></td>)}</tr>)}</tbody></table></div> : <>
         <div className="flex flex-col gap-2 sm:flex-row sm:gap-6">
           <label className="flex items-center gap-2 text-sm text-ink">
             <input type="radio" name="bulkMode" checked={bulkMode} onChange={() => handleBulkModeToggle(true)} className="h-4 w-4 border border-line text-ink accent-ink" />
@@ -1403,10 +1462,17 @@ function ProductsAndCollectionsTab() {
 
   const handleSaveProduct = (product) => {
     if (editingProduct) {
-      setProducts(prev => prev.map(p => (p._id === product._id ? product : p)));
+      const savedId = String(product?._id || product?.id || editingProduct._id || editingProduct.id);
+      setProducts((previous) => previous.map((item) =>
+        String(item._id || item.id) === savedId ? product : item
+      ));
       setEditingProduct(null);
     } else {
-      setProducts((prev) => [product, ...prev]);
+      const savedId = String(product?._id || product?.id || "");
+      if (!savedId) return;
+      setProducts((previous) => previous.some((item) => String(item._id || item.id) === savedId)
+        ? previous
+        : [product, ...previous]);
     }
   };
 
@@ -1442,9 +1508,9 @@ function ProductsAndCollectionsTab() {
         <h2 className="label-tracked text-ink">{t("admin.productsTitle")}</h2>
         <div className="mt-4">
           {editingProduct ? (
-            <ProductForm initialData={editingProduct} onSave={handleSaveProduct} onCancel={() => setEditingProduct(null)} />
+            <ProductForm key={`edit-${editingProduct._id || editingProduct.id}`} initialData={editingProduct} onSave={handleSaveProduct} onCancel={() => setEditingProduct(null)} />
           ) : (
-            <ProductForm onSave={handleSaveProduct} />
+            <ProductForm key="create-product" onSave={handleSaveProduct} />
           )}
         </div>
 
