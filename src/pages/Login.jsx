@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { useAuth } from "../context/AuthContext";
@@ -9,6 +9,11 @@ import { cn } from "../lib/cn";
 export default function Login() {
   const { t } = useLanguage();
   const navigate = useNavigate();
+  const location = useLocation();
+  const requestedReturnTo = location.state?.returnTo || location.state?.from?.pathname || location.state?.from;
+  const returnTo = typeof requestedReturnTo === "string" && requestedReturnTo.startsWith("/") && !requestedReturnTo.startsWith("//")
+    ? requestedReturnTo
+    : null;
   const { login } = useAuth();
 
   const [form, setForm] = useState({ email: "", password: "" });
@@ -42,7 +47,9 @@ export default function Login() {
 
       login(data.token, data.user);
 
-      if (data.user?.role === "Manager" || data.user?.role === "Admin") {
+      if (returnTo) {
+        navigate(returnTo, { replace: true });
+      } else if (data.user?.role === "Manager" || data.user?.role === "Admin") {
         navigate("/admin");
       } else {
         navigate("/shop");
@@ -145,7 +152,7 @@ export default function Login() {
 
       <p className="mt-7 text-center text-sm text-slate">
         {t("auth.noAccount")}{" "}
-        <Link to="/register" className="font-semibold text-ink underline-offset-2 hover:underline">
+        <Link to="/register" state={returnTo ? { returnTo } : undefined} className="font-semibold text-ink underline-offset-2 hover:underline">
           {t("auth.createOne")}
         </Link>
       </p>

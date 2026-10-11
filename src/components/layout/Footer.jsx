@@ -10,6 +10,7 @@ export default function Footer() {
     { label: t("footer.tshirts") || "T-Shirts / تيشرتات", to: "/shop?category=tshirts" },
     { label: t("footer.jackets") || "Jackets / جواكت", to: "/shop?category=jackets" },
     { label: t("footer.hoodies") || "Hoodies / هوديز", to: "/shop?category=hoodies" },
+    { label: t("footer.sweaters") || "Sweaters / بلوفرات", to: "/shop?category=sweaters" },
     { label: t("footer.pants") || "Pants / بناطيل", to: "/shop?category=pants" },
   ];
   const helpLinks = [

@@ -67,10 +67,14 @@ export default function Checkout() {
   }, [isAuthenticated]);
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      navigate("/register", { replace: true, state: { returnTo: "/checkout" } });
+      return;
+    }
     if (items.length === 0 && !isSubmitting && !orderPlaced) {
       navigate("/cart");
     }
-  }, [items, navigate, isSubmitting, orderPlaced]);
+  }, [items, navigate, isSubmitting, orderPlaced, isAuthenticated]);
 // frontend/src/pages/Checkout.jsx — only handleSubmit's payload-building changed
   const buildOrderItems = () => {
     const seenProducts = new Set();
@@ -168,7 +172,7 @@ export default function Checkout() {
     }
   };
 
-  if (items.length === 0 && !orderPlaced) return null;
+  if (!isAuthenticated || (items.length === 0 && !orderPlaced)) return null;
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6 lg:px-8" dir={locale === "ar" ? "rtl" : "ltr"}>

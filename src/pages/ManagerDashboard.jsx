@@ -9,6 +9,7 @@ import { formatPrice } from "../lib/formatPrice";
 import { cn } from "../lib/cn";
 import api from "../api/axios";
 import { CLOTHING_COLORS, getColorKey, normalizeColorOption } from "../constants/clothingColors";
+import { PRODUCT_TYPE_TO_CATEGORY } from "../lib/productHelpers";
 const ROLES = {
   OWNER: "Manager",
   ADMIN: "Admin",
@@ -873,6 +874,7 @@ const PRODUCT_TYPE_OPTIONS = [
   { value: "t-shirt", labelEn: "T-Shirt", labelAr: "تيشيرت" },
   { value: "jacket", labelEn: "Jacket", labelAr: "جاكيت" },
   { value: "hoodie", labelEn: "Hoodie", labelAr: "هودي" },
+  { value: "sweater", labelEn: "Sweater", labelAr: "بلوفر" },
   { value: "pants", labelEn: "Pants", labelAr: "بنطلون" },
 ];
 
@@ -1533,7 +1535,7 @@ function ProductsAndCollectionsTab() {
                   const productId = product._id || product.id;
                   const displayName = (locale === "ar" ? (product.nameAr || product.nameKey) : (product.nameEn || product.nameKey)) || product.name;
                   const displayCategory = product.category
-                    ? t(`categories.${product.category}`)
+                    ? t(`categories.${PRODUCT_TYPE_TO_CATEGORY[product.category] || product.category}`)
                     : "-";
                   return (
                     <tr key={productId} className="border-b border-line last:border-0">

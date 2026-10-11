@@ -90,7 +90,7 @@ export default function OrderSuccess() {
         </Link>
         <button
           type="button"
-          onClick={() => navigate("/")}
+          onClick={() => navigate("/profile")}
           className="flex flex-1 items-center justify-center gap-2 border border-line py-3.5 text-sm font-semibold text-ink transition-colors hover:border-ink"
         >
           <Package size={16} strokeWidth={1.75} />

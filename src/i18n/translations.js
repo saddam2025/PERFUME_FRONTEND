@@ -330,6 +330,7 @@ export const translations = {
       tshirts: "T-Shirts",
       jackets: "Jackets",
       hoodies: "Hoodies",
+      sweaters: "Sweaters",
       pants: "Pants",
     },
     about: {
@@ -425,6 +426,7 @@ export const translations = {
       tshirts: "T-Shirts",
       jackets: "Jackets",
       hoodies: "Hoodies",
+      sweaters: "Sweaters",
       pants: "Pants",
       helpHeading: "Help",
       helpLinks: ["Shipping", "Returns", "Size Guide", "Contact Us"],
@@ -774,6 +776,7 @@ export const translations = {
       tshirts: "تيشرتات",
       jackets: "جواكت",
       hoodies: "هوديز",
+      sweaters: "بلوفرات",
       pants: "بنطلونات",
     },
     about: {
@@ -869,6 +872,7 @@ export const translations = {
       tshirts: "تيشرتات",
       jackets: "جواكت",
       hoodies: "هوديز",
+      sweaters: "بلوفرات",
       pants: "بناطيل",
       helpHeading: "المساعدة",
       helpLinks: ["الشحن", "الاسترجاع", "دليل المقاسات", "تواصل معنا"],

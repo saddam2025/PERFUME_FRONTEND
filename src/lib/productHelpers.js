@@ -2,12 +2,13 @@
 import { getColorKey, normalizeColorOption } from "../constants/clothingColors";
 export const sizesAvailable = ["XS", "S", "M", "L", "XL", "XXL", "32", "34", "36", "38", "40", "42"];
 
-export const categories = ["tshirts", "jackets", "hoodies", "pants"];
+export const categories = ["tshirts", "jackets", "hoodies", "sweaters", "pants"];
 
 export const CATEGORY_TO_PRODUCT_TYPE = {
   tshirts: "t-shirt",
   jackets: "jacket",
   hoodies: "hoodie",
+  sweaters: "sweater",
   pants: "pants",
 };
 
@@ -15,6 +16,7 @@ export const PRODUCT_TYPE_TO_CATEGORY = {
   "t-shirt": "tshirts",
   jacket: "jackets",
   hoodie: "hoodies",
+  sweater: "sweaters",
   pants: "pants",
 };
 

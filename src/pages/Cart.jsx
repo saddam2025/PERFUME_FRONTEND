@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { Minus, Plus, X, Tag, ArrowRight, ArrowLeft, ShoppingBag } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { useCart } from "../context/CartContext";
+import { useAuth } from "../context/AuthContext";
 import { formatPrice } from "../lib/formatPrice";
 import { cn } from "../lib/cn";
 import { getPromotionHint } from "../lib/productHelpers";
@@ -256,6 +257,7 @@ function OrderSummary() {
 export default function Cart() {
   const { t, isRTL, locale } = useLanguage();
   const { items, itemCount, serverPricing, pricingError } = useCart();
+  const { isAuthenticated } = useAuth();
   const ArrowIcon = isRTL ? ArrowLeft : ArrowRight;
 
   if (items.length === 0) {
@@ -305,7 +307,8 @@ export default function Cart() {
           <div className="lg:sticky lg:top-24">
             <OrderSummary />
             <Link
-              to="/checkout"
+              to={isAuthenticated ? "/checkout" : "/register"}
+              state={isAuthenticated ? undefined : { returnTo: "/checkout" }}
               className="mt-4 flex w-full items-center justify-center gap-2 bg-ink py-3.5 text-sm font-semibold uppercase tracking-wide text-paper transition-opacity hover:opacity-85"
             >
               {t("cart.checkout")}
