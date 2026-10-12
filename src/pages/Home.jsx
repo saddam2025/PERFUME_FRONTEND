@@ -1,16 +1,18 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, ArrowLeft } from "lucide-react";
+import { ArrowRight, ArrowLeft, Users } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import api from "../api/axios";
-import { mapApiProductToUiProduct, categories, CATEGORY_TO_PRODUCT_TYPE } from "../lib/productHelpers";
+import { mapApiProductToUiProduct } from "../lib/productHelpers";
 import ProductCard from "../components/product/ProductCard";
+import logo from "../assets/logo.png";
 
 export default function Home() {
   const { t, isRTL } = useLanguage();
   const ArrowIcon = isRTL ? ArrowLeft : ArrowRight;
 
   const [featured, setFeatured] = useState([]);
+  const [newArrivals, setNewArrivals] = useState([]);
 
   // One unique representative product per category, fetched live.
   useEffect(() => {
@@ -20,21 +22,17 @@ export default function Home() {
       try {
         const { data } = await api.get("/products", { params: { limit: 500 } });
         const products = data?.data?.products || [];
-        const usedIds = new Set();
-        const results = categories.flatMap((cat) => {
-          const productType = CATEGORY_TO_PRODUCT_TYPE[cat];
-          const match = products.find((product) =>
-            product.category === productType && !usedIds.has(String(product._id))
-          );
-          if (!match) return [];
-          usedIds.add(String(match._id));
-          return [mapApiProductToUiProduct(match)];
-        });
+        const results = products.slice(0, 4).map(mapApiProductToUiProduct);
+        const arrivals = products.filter((product) => product.isLatestArrival).slice(0, 4).map(mapApiProductToUiProduct);
         if (!cancelled) {
           setFeatured(results.filter(Boolean));
+          setNewArrivals(arrivals.filter(Boolean));
         }
       } catch {
-        if (!cancelled) setFeatured([]);
+        if (!cancelled) {
+          setFeatured([]);
+          setNewArrivals([]);
+        }
       }
     }
 
@@ -51,9 +49,13 @@ export default function Home() {
         <div className="mx-auto max-w-7xl px-4 pb-16 pt-14 sm:px-6 sm:pb-24 sm:pt-20 lg:px-8 lg:pb-28 lg:pt-24">
           <p className="label-tracked text-accent-deep">{t("hero.eyebrow")}</p>
 
-          <h1 className="font-display mt-4 text-[3.4rem] font-black leading-[0.92] tracking-tightest text-ink sm:text-[5.5rem] lg:text-[8rem]">
-            {t("hero.title")}
-          </h1>
+          <div className="mt-4 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:gap-8">
+            <h1 className="m-0"><img src={logo} alt="DEJA FRAGRANCES" className="h-14 w-auto max-w-48 object-contain sm:h-16" /></h1>
+            <Link to="/affiliate/join" className="inline-flex min-h-11 items-center justify-center gap-2 border border-line px-4 py-2.5 text-sm font-semibold text-ink transition-colors hover:border-ink">
+              <Users size={16} strokeWidth={1.75} />
+              {t("hero.affiliateCta")}
+            </Link>
+          </div>
 
           <div className="mt-6 max-w-xl border-t border-line pt-6 sm:mt-8">
             <p className="text-lg font-medium text-ink sm:text-xl">{t("hero.subtitle")}</p>
@@ -77,7 +79,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Decorative swatch strip - stands in for hero imagery, ties to fabric/material identity */}
+        {/* Decorative fragrance palette */}
         <div className="grid grid-cols-3 h-20 sm:h-28">
           <div style={{ backgroundColor: "#E8E4DC" }} />
           <div style={{ backgroundColor: "#2B2B2E" }} />
@@ -85,7 +87,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Featured Collections */}
+      {/* Best Sellers */}
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
         <div className="flex flex-col gap-2 border-b border-line pb-6 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -109,6 +111,21 @@ export default function Home() {
             <ProductCard key={product.id} product={product} />
           ))}
         </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+        <h2 className="font-display text-2xl font-extrabold tracking-tightest">{t("home.shopByGender")}</h2>
+        <div className="mt-5 flex flex-wrap gap-3">{[["men", "footer.tshirts"], ["women", "footer.jackets"], ["unisex", "footer.hoodies"]].map(([gender, label]) => <Link key={gender} to={`/shop?gender=${gender}`} className="border border-line px-5 py-3 text-sm font-semibold hover:border-ink">{t(label)}</Link>)}</div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+        <h2 className="font-display text-2xl font-extrabold tracking-tightest">{t("home.shopByFamily")}</h2>
+        <div className="mt-5 flex flex-wrap gap-3">{[["woody", "home.woody"], ["floral", "home.floral"], ["oriental", "home.oriental"], ["fresh", "home.fresh"], ["citrus", "home.citrus"], ["gourmand", "home.gourmand"], ["musky", "home.musky"], ["aromatic", "home.aromatic"]].map(([family, label]) => <Link key={family} to={`/shop?family=${family}`} className="border border-line px-5 py-3 text-sm font-semibold hover:border-ink">{t(label)}</Link>)}</div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
+        <div className="flex items-end justify-between border-b border-line pb-6"><h2 className="font-display text-3xl font-extrabold tracking-tightest">{t("home.newArrivals")}</h2><Link to="/shop?sort=newest" className="text-sm font-semibold">{t("featured.viewAll")}</Link></div>
+        <div className="mt-10 grid grid-cols-2 gap-x-5 gap-y-10 sm:grid-cols-3 lg:gap-x-8">{newArrivals.map((product) => <ProductCard key={product.id} product={product} />)}</div>
       </section>
     </>
   );

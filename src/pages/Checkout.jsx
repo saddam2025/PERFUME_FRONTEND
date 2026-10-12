@@ -38,7 +38,6 @@ export default function Checkout() {
     discount,
     total,
     appliedCoupon,
-    freeSelectionsByProduct,
     serverPricing,
     clearCart,
   } = useCart();
@@ -76,25 +75,11 @@ export default function Checkout() {
     }
   }, [items, navigate, isSubmitting, orderPlaced, isAuthenticated]);
 // frontend/src/pages/Checkout.jsx — only handleSubmit's payload-building changed
-  const buildOrderItems = () => {
-    const seenProducts = new Set();
-    return items.map((item) => {
-      const productId = resolveProductId(item);
-      const firstForProduct = !seenProducts.has(String(productId));
-      seenProducts.add(String(productId));
-      return ({
-      productId,
-      quantity: resolveQuantity(item),
-      // FIX: size/color were being silently dropped — the cart line has
-      // them (item.size is a string, item.color is the color object from
-      // productHelpers with { nameEn, nameAr, id }), they just never made
-      // it into the request payload.
-      size: item.size || null,
-      color: item.color?.nameEn || item.color?.id || item.color || null,
-      ...(firstForProduct && freeSelectionsByProduct[productId]?.length ? { freeSelections: freeSelectionsByProduct[productId].map((selection) => ({ ...selection, color: selection.color?.nameEn || selection.color?.id || selection.color || null })) } : {}),
-    });
-    });
-  };
+  const buildOrderItems = () => items.map((item) => ({
+    productId: resolveProductId(item),
+    quantity: resolveQuantity(item),
+    volumeMl: item.volumeMl,
+  }));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -345,8 +330,7 @@ export default function Checkout() {
                 <div className="flex-1 min-w-0">
                   <h4 className="text-xs font-semibold text-ink truncate">{item.name}</h4>
                   <p className="text-[11px] text-slate mt-0.5">
-                    {item.size && `${locale === "ar" ? "المقاس" : "Size"}: ${item.size}`}
-                    {item.color && ` | ${locale === "ar" ? "اللون" : "Color"}: ${item.color}`}
+                    {item.volumeMl} ml
                   </p>
                   <p className="text-xs text-ink font-medium mt-1">
                     {item.qty} × EGP {item.price?.toFixed(2)}
@@ -355,7 +339,7 @@ export default function Checkout() {
               </div>
             ))}
           </div>
-          {(serverPricing?.appliedPromotions || []).map((promotion, index) => <div key={`${promotion.promotionId}-${index}`} className="mb-3 border border-accent/40 bg-accent/10 p-3 text-xs"><p className="font-semibold text-ink">{promotion.name} · {promotion.ruleDescription}</p><p className="mt-1 text-accent-deep">{locale === "ar" ? "وفرت" : "You save"} {formatPrice(promotion.discountAmount || 0, locale, t("common.currency"))}</p>{promotion.freeItems?.length > 0 && <p className="mt-1 text-slate">{locale === "ar" ? "القطع المجانية" : "Free items"}: {promotion.freeItems.map((freeItem) => `${freeItem.quantity}× ${freeItem.name} ${freeItem.size || ""} ${freeItem.color || ""}`).join(" · ")}</p>}</div>)}
+          {(serverPricing?.appliedPromotions || []).map((promotion, index) => <div key={`${promotion.promotionId}-${index}`} className="mb-3 border border-accent/40 bg-accent/10 p-3 text-xs"><p className="font-semibold text-ink">{promotion.name} · {promotion.ruleDescription}</p><p className="mt-1 text-accent-deep">{locale === "ar" ? "وفرت" : "You save"} {formatPrice(promotion.discountAmount || 0, locale, t("common.currency"))}</p>{promotion.freeItems?.length > 0 && <p className="mt-1 text-slate">{locale === "ar" ? "القطع المجانية" : "Free items"}: {promotion.freeItems.map((freeItem) => `${freeItem.quantity}× ${freeItem.name} ${freeItem.volumeMl || ""} ml`).join(" · ")}</p>}</div>)}
 
           <div className="space-y-3 text-sm text-slate border-t border-line pt-4">
             <div className="flex justify-between">

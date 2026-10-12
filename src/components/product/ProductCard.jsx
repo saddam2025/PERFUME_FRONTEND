@@ -10,7 +10,7 @@ import { Plus, Image as ImageIcon } from "lucide-react";
 import { useLanguage } from "../../context/LanguageContext";
 import { useCart } from "../../context/CartContext";
 import { formatPrice } from "../../lib/formatPrice";
-import { getTotalStock, getStockForSize } from "../../lib/productHelpers";
+import { getTotalStock, getStockForVolume } from "../../lib/productHelpers";
 import { getPromotionHint } from "../../lib/productHelpers";
 
 // FIX Bug 3: compute once, fallback to '' so concatenation never yields "undefined/...".
@@ -20,25 +20,26 @@ export default function ProductCard({ product }) {
   const { t, locale } = useLanguage();
   const { addItem } = useCart();
   const navigate = useNavigate();
-  const [selectedSize, setSelectedSize] = useState(product.sizes?.[0]);
-  const [selectedColor, setSelectedColor] = useState(product.colors?.[0] || null);
+  const [selectedVolumeMl, setSelectedVolumeMl] = useState(product.variants?.find((variant) => variant.stock > 0)?.volumeMl ?? product.variants?.[0]?.volumeMl);
   const [justAdded, setJustAdded] = useState(false);
 
   const name = locale === "ar" ? (product.nameAr || product.nameKey) : (product.nameEn || product.nameKey);
   const totalStock = getTotalStock(product);
   const isSoldOut = totalStock <= 0;
   const isLowStock = totalStock > 0 && totalStock <= 10;
-  const onSale = Number(product.compareAtPrice) > Number(product.price);
-  const sizeStock = getStockForSize(product, selectedSize, selectedColor);
+  const selectedVariant = product.variants?.find((variant) => Number(variant.volumeMl) === Number(selectedVolumeMl));
+  const selectedPrice = Number(selectedVariant?.price ?? product.price);
+  const onSale = Number(product.compareAtPrice) > selectedPrice;
+  const variantStock = getStockForVolume(product, selectedVolumeMl);
 
   const primaryImage = product.imageUrls?.[0] || null;  
   const handleAddToCart = () => {
-    if ((product.sizes?.length && !selectedSize) || (product.colors?.length && !selectedColor)) {
+    if (!selectedVariant) {
       navigate(`/product/${product._id || product.id}`);
       return;
     }
-    if (sizeStock <= 0) return;
-    addItem(product, selectedSize || null, selectedColor);
+    if (variantStock <= 0) return;
+    addItem(product, selectedVolumeMl);
     setJustAdded(true);
     window.setTimeout(() => setJustAdded(false), 1800);
   };
@@ -96,7 +97,7 @@ export default function ProductCard({ product }) {
 
         <div className="mt-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-1">
           <span className="text-sm font-semibold text-ink">
-            {formatPrice(product.price, locale, t("common.currency"))}
+            {formatPrice(selectedPrice, locale, t("common.currency"))}
           </span>
           {onSale && (
             <span className="text-xs text-slate-light line-through">
@@ -106,49 +107,32 @@ export default function ProductCard({ product }) {
         </div>
 
         <div className="mt-3 flex flex-wrap gap-1.5">
-          {product.sizes?.map((size) => (
+          {product.variants?.map((variant) => (
             <button
-              key={size}
+              key={variant.volumeMl}
               type="button"
-              onClick={() => setSelectedSize(size)}
-              className={`flex h-7 min-w-7 items-center justify-center border px-1.5 text-[11px] font-medium transition-colors ${
-                selectedSize === size
+              disabled={Number(variant.stock) <= 0}
+              onClick={() => setSelectedVolumeMl(variant.volumeMl)}
+              className={`flex h-7 items-center justify-center border px-2 text-[11px] font-medium transition-colors disabled:cursor-not-allowed disabled:line-through disabled:text-slate-light ${
+                Number(selectedVolumeMl) === Number(variant.volumeMl)
                   ? "border-ink bg-ink text-paper"
                   : "border-line text-slate hover:border-ink hover:text-ink"
               }`}
-              aria-pressed={selectedSize === size}
+              aria-pressed={Number(selectedVolumeMl) === Number(variant.volumeMl)}
             >
-              {size}
+              {variant.volumeMl} ml
             </button>
           ))}
         </div>
 
-        {product.colors?.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2" aria-label={t("pdp.color")}>
-            {product.colors.map((color) => (
-              <button
-                key={color.id}
-                type="button"
-                onClick={() => setSelectedColor(color)}
-                title={locale === "ar" ? color.nameAr : color.nameEn}
-                aria-label={locale === "ar" ? color.nameAr : color.nameEn}
-                aria-pressed={selectedColor?.id === color.id}
-                className={`h-6 w-6 rounded-full border-2 ${selectedColor?.id === color.id ? "border-ink" : "border-transparent"}`}
-              >
-                <span className="block h-full w-full rounded-full border border-line/60" style={{ backgroundColor: color.swatch }} />
-              </button>
-            ))}
-          </div>
-        )}
-
         <button
           type="button"
           onClick={handleAddToCart}
-          disabled={isSoldOut || sizeStock <= 0}
+          disabled={isSoldOut || variantStock <= 0}
           className="mt-4 mt-auto flex w-full items-center justify-center gap-2 border border-ink bg-ink py-2.5 text-xs font-semibold uppercase tracking-wide text-paper transition-colors hover:bg-ink/85 disabled:cursor-not-allowed disabled:border-line disabled:bg-line disabled:text-slate-light"
         >
           <Plus size={14} strokeWidth={2} />
-          {justAdded ? t("product.addedToCart") : isSoldOut ? t("product.soldOut") : sizeStock <= 0 ? t("product.outOfStock") : t("product.addToCart")}
+          {justAdded ? t("product.addedToCart") : isSoldOut ? t("product.soldOut") : variantStock <= 0 ? t("product.outOfStock") : t("product.addToCart")}
         </button>
       </div>
     </div>

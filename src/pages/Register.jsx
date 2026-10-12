@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
+import logo from "../assets/logo.png";
 import { useAuth } from "../context/AuthContext";
 import api from "../api/axios";
 import { cn } from "../lib/cn";
@@ -73,7 +74,7 @@ export default function Register() {
   return (
     <div className="mx-auto flex min-h-[70vh] max-w-md flex-col justify-center px-4 py-16 sm:px-6">
       <div className="text-center">
-        <span className="font-display text-2xl font-black tracking-tightest">TORONTO</span>
+        <img src={logo} alt="DEJA FRAGRANCES" className="mx-auto h-10 w-auto max-w-36 object-contain" />
         <h1 className="font-display mt-5 text-2xl font-extrabold tracking-tightest">
           {t("auth.signUpTitle")}
         </h1>

@@ -4,12 +4,12 @@ import { useSearchParams } from "react-router-dom";
 import { SlidersHorizontal, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import api from "../api/axios";
-import { mapApiProductToUiProduct, CATEGORY_TO_PRODUCT_TYPE } from "../lib/productHelpers";
+import { mapApiProductToUiProduct } from "../lib/productHelpers";
 import ProductCard from "../components/product/ProductCard";
 import FilterSidebar from "../components/product/FilterSidebar";
 
 export default function Shop() {
-  const { t } = useLanguage();
+  const { t, isRTL } = useLanguage();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [products, setProducts] = useState([]);
@@ -23,11 +23,7 @@ export default function Shop() {
   const [totalResults, setTotalResults] = useState(0);
 
   const currentSearch = searchParams.get("search") || "";
-  const currentCategory = searchParams.get("category") || "";
-  const currentMinPrice = searchParams.get("minPrice") || "";
-  const currentMaxPrice = searchParams.get("maxPrice") || "";
-  const currentCollection = searchParams.get("collectionId") || "";
-  const currentSort = searchParams.get("sort") || "newest";
+  const queryString = searchParams.toString();
 
   useEffect(() => {
     let cancelled = false;
@@ -36,31 +32,9 @@ export default function Shop() {
       setLoading(true);
       setError(null);
       try {
-        // FIX: currentCategory holds UI keys (tshirts, jackets, hoodies, pants)
-        // set by FilterSidebar/Footer — the backend's Product.category enum
-        // uses different values (t-shirt, jacket, hoodie, pants). Translate
-        // each comma-joined token before sending, or every category except
-        // "pants" (which happens to match by coincidence) silently returns
-        // zero results.
-        const translatedCategory = currentCategory
-          ? currentCategory
-              .split(",")
-              .map((key) => CATEGORY_TO_PRODUCT_TYPE[key] || key)
-              .join(",")
-          : "";
-
-        const params = {
-          page,
-          limit: 12,
-          category: translatedCategory,
-          search: currentSearch,
-          minPrice: currentMinPrice,
-          maxPrice: currentMaxPrice,
-          collectionId: currentCollection,
-          sort: currentSort,
-        };
-
-        Object.keys(params).forEach(key => !params[key] && delete params[key]);
+        const params = Object.fromEntries(new URLSearchParams(queryString));
+        params.page = page;
+        params.limit = 12;
 
         const { data } = await api.get("/products", { params });
         if (!cancelled) {
@@ -86,7 +60,7 @@ export default function Shop() {
 
     fetchProducts();
     return () => { cancelled = true; };
-  }, [page, currentCategory, currentSearch, currentMinPrice, currentMaxPrice, currentCollection, currentSort]);
+  }, [page, queryString]);
 
   const updateFilter = (key, value) => {
     const nextParams = new URLSearchParams(searchParams);
@@ -118,6 +92,36 @@ export default function Shop() {
     setSearchParams({});
   };
 
+  const filterLabels = {
+    search: "shop.search",
+    gender: "shop.gender",
+    concentration: "shop.concentration",
+    family: "shop.family",
+    notes: "shop.notes",
+    volume: "shop.volume",
+    minPrice: "shop.minPrice",
+    maxPrice: "shop.maxPrice",
+    inStock: "shop.availability",
+    collectionId: "shop.collections",
+  };
+  const activeChips = [...searchParams.entries()]
+    .filter(([key]) => key !== "page" && key !== "sort")
+    .flatMap(([key, value]) => (key === "gender" || key === "family" || key === "notes" || key === "concentration" || key === "season" || key === "volume"
+      ? value.split(",").filter(Boolean).map((entry) => ({ key, value: entry }))
+      : [{ key, value }]))
+    .filter(({ key }) => filterLabels[key]);
+  const removeChip = ({ key, value }) => {
+    const next = new URLSearchParams(searchParams);
+    if (["gender", "family", "notes", "concentration", "season", "volume"].includes(key)) {
+      const values = (next.get(key) || "").split(",").filter((entry) => entry && entry !== value);
+      if (values.length) next.set(key, values.join(","));
+      else next.delete(key);
+    } else next.delete(key);
+    next.set("page", "1");
+    setSearchParams(next);
+  };
+  const drawerAnimation = isRTL ? "motion-safe:animate-[drawer-in-rtl_180ms_ease-out]" : "motion-safe:animate-[drawer-in-ltr_180ms_ease-out]";
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
       <div className="flex flex-col gap-1 border-b border-line pb-6">
@@ -140,7 +144,7 @@ export default function Shop() {
         </aside>
 
         <div className="flex-1">
-          <div className="mb-6 flex items-center justify-between gap-4">
+          <div className="mb-4 flex items-center justify-between gap-4">
             <button
               type="button"
               onClick={() => setMobileFiltersOpen(true)}
@@ -149,23 +153,23 @@ export default function Shop() {
               <SlidersHorizontal size={16} strokeWidth={1.75} />
               {t("shop.filters")}
             </button>
-
             <div className="ms-auto flex items-center gap-2">
-              <label htmlFor="sort" className="hidden text-xs text-slate sm:inline">
-                {t("shop.sortBy")}
-              </label>
-              <select
-                id="sort"
-                value={currentSort}
-                onChange={(e) => updateFilter("sort", e.target.value)}
-                className="border border-line bg-paper px-3 py-2.5 text-sm text-ink focus:border-ink"
-              >
+              <label htmlFor="sort" className="hidden text-xs text-slate sm:inline">{t("shop.sortBy")}</label>
+              <select id="sort" value={searchParams.get("sort") || "newest"} onChange={(event) => updateFilter("sort", event.target.value)} className="border border-line bg-paper px-3 py-2.5 text-sm text-ink focus:border-ink">
                 <option value="newest">{t("shop.sortNewest")}</option>
-                <option value="priceLow">{t("shop.sortPriceLow")}</option>
-                <option value="priceHigh">{t("shop.sortPriceHigh")}</option>
+                <option value="price_asc">{t("shop.sortPriceLow")}</option>
+                <option value="price_desc">{t("shop.sortPriceHigh")}</option>
+                <option value="name_asc">{t("shop.sortName")}</option>
               </select>
             </div>
           </div>
+
+          {activeChips.length > 0 && <div className="mb-6 flex flex-wrap gap-2">
+            {activeChips.map((chip, index) => <button key={`${chip.key}-${chip.value}-${index}`} type="button" onClick={() => removeChip(chip)} className="inline-flex items-center gap-2 border border-line px-3 py-1.5 text-xs text-ink hover:border-ink">
+              <span>{t(filterLabels[chip.key])}: {chip.key === "inStock" ? t("shop.inStock") : chip.key === "gender" ? t(`shop.genderOptions.${chip.value}`) : chip.value}</span><X size={13} />
+            </button>)}
+            <button type="button" onClick={clearFilters} className="px-2 py-1.5 text-xs text-slate underline">{t("shop.clearAll")}</button>
+          </div>}
 
           {loading ? (
             <div className="flex flex-col items-center justify-center border border-dashed border-line py-20 text-center">
@@ -177,13 +181,13 @@ export default function Shop() {
             </div>
           ) : products.length === 0 ? (
             <div className="flex flex-col items-center justify-center border border-dashed border-line py-20 text-center">
-              <p className="text-sm text-slate">{t("shop.noResults")}</p>
+              <p className="text-sm text-slate">{t("shop.noPerfumesFound")}</p>
               <button
                 type="button"
                 onClick={clearFilters}
                 className="mt-4 border-b border-ink pb-0.5 text-sm font-semibold text-ink"
               >
-                {t("shop.clearAll")}
+                {t("shop.clearFilters")}
               </button>
             </div>
           ) : (
@@ -227,7 +231,7 @@ export default function Shop() {
             onClick={() => setMobileFiltersOpen(false)}
             aria-hidden="true"
           />
-          <div className="absolute inset-y-0 start-0 flex w-full max-w-xs flex-col overflow-y-auto bg-paper p-5 shadow-xl">
+          <div role="dialog" aria-modal="true" aria-label={t("shop.filters")} className={`absolute inset-y-0 start-0 flex w-full max-w-xs flex-col overflow-y-auto bg-paper p-5 shadow-xl ${drawerAnimation}`}>
             <div className="mb-2 flex items-center justify-between">
               <span className="font-display text-base font-bold">{t("shop.filters")}</span>
               <button

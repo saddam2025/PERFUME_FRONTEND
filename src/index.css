@@ -2,6 +2,16 @@
 
 @import url("https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=Inter:wght@400;500;600;700&family=Tajawal:wght@400;500;700;800&display=swap");
 
+@keyframes drawer-in-ltr {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes drawer-in-rtl {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
 @theme {
   /* Color tokens */
   --color-ink: #0e0e10;

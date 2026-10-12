@@ -5,11 +5,11 @@
 //   Fix: resolve BASE_URL once with a safe empty-string fallback.
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowRight, ArrowLeft, Check, Minus, Plus, Ruler, X, Image as ImageIcon } from "lucide-react";
+import { ArrowRight, ArrowLeft, Check, Minus, Plus, Image as ImageIcon } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { useCart } from "../context/CartContext";
 import api from "../api/axios";
-import { mapApiProductToUiProduct, getStockForSize, getTotalStock, getPromotionHint } from "../lib/productHelpers";
+import { mapApiProductToUiProduct, getStockForVolume, getTotalStock, getPromotionHint } from "../lib/productHelpers";
 import { formatPrice } from "../lib/formatPrice";
 import { cn } from "../lib/cn";
 
@@ -56,13 +56,10 @@ export default function ProductDetails() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
-  const [selectedSize, setSelectedSize] = useState(null);
-  const [selectedColor, setSelectedColor] = useState(null);
+  const [selectedVolumeMl, setSelectedVolumeMl] = useState(null);
   const [quantity, setQuantity] = useState(1);
   const [activeImage, setActiveImage] = useState(0);
-  const [sizeError, setSizeError] = useState(false);
   const [justAdded, setJustAdded] = useState(false);
-  const [sizeGuideOpen, setSizeGuideOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -82,7 +79,7 @@ export default function ProductDetails() {
         const mapped = mapApiProductToUiProduct(rawMatch);
         if (!cancelled) {
           setProduct(mapped);
-          setSelectedColor(mapped.colors?.[0] ?? null);
+          setSelectedVolumeMl(mapped.variants?.find((variant) => variant.stock > 0)?.volumeMl ?? mapped.variants?.[0]?.volumeMl ?? null);
         }
       } catch {
         if (!cancelled) setNotFound(true);
@@ -118,15 +115,13 @@ export default function ProductDetails() {
 
   const name = locale === "ar" ? (product.nameAr || product.nameKey) : (product.nameEn || product.nameKey);
   const description = locale === "ar" ? (product.descriptionAr || product.descriptionKey) : (product.descriptionEn || product.descriptionKey);
-  const onSale = Number(product.compareAtPrice) > Number(product.price);
+  const selectedVariant = product.variants?.find((variant) => Number(variant.volumeMl) === Number(selectedVolumeMl));
+  const selectedPrice = Number(selectedVariant?.price ?? product.price);
+  const onSale = Number(product.compareAtPrice) > selectedPrice;
   const totalStock = getTotalStock(product);
   const isSoldOut = totalStock <= 0;
   const isLowStockOverall = totalStock > 0 && totalStock <= 10;
-  const stockForSelectedSize = selectedSize
-    ? getStockForSize(product, selectedSize, selectedColor)
-    : product.sizes?.length
-      ? null
-      : getStockForSize(product, null, selectedColor);
+  const stockForSelectedVolume = selectedVolumeMl ? getStockForVolume(product, selectedVolumeMl) : 0;
   const detailsList = t("pdp.detailsList") || [];
   const nextPromotionTier = (product.promotions || []).flatMap((promotion) =>
     (promotion.tiers || []).map((tier) => ({ promotion, tier }))
@@ -138,23 +133,13 @@ export default function ProductDetails() {
     : [];
 
   const handleAddToCart = () => {
-    if (product.sizes?.length && !selectedSize) {
-      setSizeError(true);
-      return;
-    }
-    if (stockForSelectedSize <= 0) return;
-    addItem(product, selectedSize, selectedColor, quantity);
+    if (!selectedVariant || stockForSelectedVolume <= 0) return;
+    addItem(product, selectedVolumeMl, quantity);
     setJustAdded(true);
     setTimeout(() => setJustAdded(false), 1800);
   };
 
-  const handleSizeSelect = (size) => {
-    setSelectedSize(size);
-    setSizeError(false);
-    setQuantity(1);
-  };
-
-  const maxQty = stockForSelectedSize ?? 99;
+  const maxQty = stockForSelectedVolume || 99;
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
@@ -215,7 +200,7 @@ export default function ProductDetails() {
 
           <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <span className="text-xl font-semibold text-ink">
-              {formatPrice(product.price, locale, t("common.currency"))}
+              {formatPrice(selectedPrice, locale, t("common.currency"))}
             </span>
             {onSale && (
               <span className="text-sm text-slate-light line-through">
@@ -225,6 +210,12 @@ export default function ProductDetails() {
           </div>
 
           <p className="mt-5 text-sm leading-relaxed text-slate">{description}</p>
+
+          {product.brand && <p className="mt-3 text-sm font-semibold text-slate">{t("pdp.brand")}: {product.brand}</p>}
+          {product.concentration && <p className="mt-2 text-sm text-slate">{t("pdp.concentration")}: {product.concentration}</p>}
+          {product.fragranceFamily?.length > 0 && <div className="mt-3"><p className="text-xs font-semibold text-slate">{t("pdp.fragranceFamily")}</p><div className="mt-2 flex flex-wrap gap-2">{product.fragranceFamily.map((family) => <span key={family} className="border border-line px-2 py-1 text-xs">{family}</span>)}</div></div>}
+          {Object.values(product.notes || {}).some((list) => list?.length) && <section className="mt-6 border-t border-line pt-5"><h2 className="label-tracked text-ink">{t("pdp.fragrancePyramid")}</h2><div className="mt-3 grid gap-3 sm:grid-cols-3">{[["top", "pdp.topNotes"], ["middle", "pdp.middleNotes"], ["base", "pdp.baseNotes"]].map(([level, label]) => product.notes[level]?.length > 0 && <div key={level}><p className="text-xs font-semibold text-slate">{t(label)}</p><div className="mt-2 flex flex-wrap gap-1.5">{product.notes[level].map((note) => <span key={note} className="border border-line px-2 py-1 text-xs">{note}</span>)}</div></div>)}</div></section>}
+          {(product.longevity || product.sillage) && <div className="mt-4 flex flex-wrap gap-6">{[["longevity", product.longevity], ["sillage", product.sillage]].map(([key, value]) => value && <div key={key}><p className="text-xs font-semibold text-slate">{t(`pdp.${key}`)}</p><p className="mt-1 text-sm tracking-widest" aria-label={`${value} ${t("pdp.outOfFive")}`}>{"●".repeat(value)}{"○".repeat(5 - value)}</p></div>)}</div>}
 
           {product.promotions?.length > 0 && (
             <div className="mt-6 border border-accent/40 bg-accent/10 p-4">
@@ -244,93 +235,48 @@ export default function ProductDetails() {
             </div>
           )}
 
-          {product.colors?.length > 0 && (
-  <div className="mt-7 border-t border-line pt-6">
-    <div className="flex items-center justify-between">
-      <h3 className="label-tracked text-ink">{t("pdp.color")}</h3>
-      <span className="text-xs text-slate">
-        {locale === "ar" ? selectedColor?.nameAr : selectedColor?.nameEn}
-      </span>
-    </div>
-    <div className="mt-3 flex flex-wrap gap-2.5">
-      {product.colors.map((color) => (
-        <button
-          key={color.id}
-          type="button"
-          onClick={() => setSelectedColor(color)}
-          aria-pressed={selectedColor?.id === color.id}
-          aria-label={locale === "ar" ? color.nameAr : color.nameEn}
-          className={cn(
-            "flex h-9 w-9 items-center justify-center rounded-full border-2 transition-colors",
-            selectedColor?.id === color.id ? "border-ink" : "border-transparent hover:border-line"
-          )}
-        >
-          <span
-            className="h-7 w-7 rounded-full border border-line/60"
-            style={{ backgroundColor: color.swatch }}
-          />
-        </button>
-      ))}
-    </div>
-  </div>
-)}
-          {product.sizes?.length > 0 && (
+          {product.variants?.length > 0 && (
             <div className="mt-7 border-t border-line pt-6">
-              <div className="flex items-center justify-between">
-                <h3 className="label-tracked text-ink">{t("pdp.size")}</h3>
-                <button
-                  type="button"
-                  onClick={() => setSizeGuideOpen(true)}
-                  className="flex items-center gap-1.5 text-xs font-semibold text-ink underline-offset-2 hover:underline"
-                >
-                  <Ruler size={14} strokeWidth={1.75} />
-                  {t("pdp.sizeGuide")} 📏
-                </button>
-              </div>
-
+              <h3 className="label-tracked text-ink">{t("pdp.volume")}</h3>
               <div className="mt-3 flex flex-wrap gap-2">
-                {product.sizes.map((size) => {
-                  const stock = getStockForSize(product, size, selectedColor);
+                {product.variants.map((variant) => {
+                  const stock = Number(variant.stock) || 0;
                   const disabled = stock <= 0;
                   return (
                     <button
-                      key={size}
+                      key={variant.volumeMl}
                       type="button"
                       disabled={disabled}
-                      onClick={() => handleSizeSelect(size)}
-                      aria-pressed={selectedSize === size}
+                      onClick={() => { setSelectedVolumeMl(variant.volumeMl); setQuantity(1); }}
+                      aria-pressed={Number(selectedVolumeMl) === Number(variant.volumeMl)}
                       className={cn(
                         "flex h-11 min-w-11 items-center justify-center border px-3 text-sm font-medium transition-colors",
                         disabled
                           ? "cursor-not-allowed border-line text-slate-light line-through"
-                          : selectedSize === size
+                          : Number(selectedVolumeMl) === Number(variant.volumeMl)
                           ? "border-ink bg-ink text-paper"
                           : "border-line text-ink hover:border-ink"
                       )}
                     >
-                      {size}
+                      {variant.volumeMl} ml
                     </button>
                   );
                 })}
               </div>
 
-              {sizeError && (
-                <p className="mt-2 text-xs font-medium text-red-700">{t("pdp.selectSize")}</p>
-              )}
-
-              {selectedSize && stockForSelectedSize > 0 && (
+              {selectedVolumeMl && stockForSelectedVolume > 0 && (
                 <p
                   className={cn(
                     "mt-2 text-xs font-medium",
-                    stockForSelectedSize <= 3 ? "text-accent-deep" : "text-slate"
+                    stockForSelectedVolume <= 3 ? "text-accent-deep" : "text-slate"
                   )}
                 >
-                  {stockForSelectedSize <= 5
-                    ? t("pdp.onlyXLeft", { count: stockForSelectedSize })
+                  {stockForSelectedVolume <= 5
+                    ? t("pdp.onlyXLeft", { count: stockForSelectedVolume })
                     : t("pdp.inStock")}
                 </p>
               )}
-              {!selectedSize && isLowStockOverall && (
+              {!selectedVolumeMl && isLowStockOverall && (
                 <p className="mt-2 text-xs font-medium text-accent-deep">{t("product.lowStock")}</p>
               )}
             </div>
@@ -363,7 +309,7 @@ export default function ProductDetails() {
             <button
               type="button"
               onClick={handleAddToCart}
-              disabled={isSoldOut || stockForSelectedSize === 0}
+              disabled={isSoldOut || stockForSelectedVolume === 0}
               className={cn(
                 "flex flex-1 items-center justify-center gap-2 text-sm font-semibold uppercase tracking-wide transition-colors",
                 justAdded
@@ -401,15 +347,6 @@ export default function ProductDetails() {
         </div>
       </div>
 
-      {sizeGuideOpen && (
-        <SizeGuideModal
-          imageUrl={product.sizeGuideImageUrl}
-          onClose={() => setSizeGuideOpen(false)}
-          title={t("pdp.sizeGuideModalTitle")}
-          noImageLabel={t("pdp.noSizeGuide")}
-          closeLabel={t("common.close")}
-        />
-      )}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { useLanguage } from "../../context/LanguageContext";
+import logo from "../../assets/logo.png";
 
 export default function Footer() {
   const { t } = useLanguage();
@@ -7,11 +8,11 @@ export default function Footer() {
   // تعريف اللينكات هنا أضمن بمليون مرة عشان لو ملف الـ JSON باظ، اللينكات متختفيش
   // Footer.jsx — only this array needs to change
   const shopLinks = [
-    { label: t("footer.tshirts") || "T-Shirts / تيشرتات", to: "/shop?category=tshirts" },
-    { label: t("footer.jackets") || "Jackets / جواكت", to: "/shop?category=jackets" },
-    { label: t("footer.hoodies") || "Hoodies / هوديز", to: "/shop?category=hoodies" },
-    { label: t("footer.sweaters") || "Sweaters / بلوفرات", to: "/shop?category=sweaters" },
-    { label: t("footer.pants") || "Pants / بناطيل", to: "/shop?category=pants" },
+    { label: t("footer.tshirts"), to: "/shop?gender=men" },
+    { label: t("footer.jackets"), to: "/shop?gender=women" },
+    { label: t("footer.hoodies"), to: "/shop?gender=unisex" },
+    { label: t("footer.sweaters"), to: "/shop?family=woody" },
+    { label: t("footer.pants"), to: "/shop?family=floral" },
   ];
   const helpLinks = [
     { label: t("footer.shippingPolicy") || "Shipping Policy / سياسة الشحن", to: "/shipping-policy" },
@@ -29,16 +30,16 @@ export default function Footer() {
   return (
     <footer className="border-t border-line bg-paper text-right" dir="rtl">
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-2 gap-10 md:grid-cols-5 text-left md:text-right">
+        <div className="grid min-w-0 grid-cols-1 gap-8 sm:grid-cols-2 sm:gap-10 lg:grid-cols-5 text-left md:text-right">
           
           {/* عمود اللوجو والتاغ لاين */}
-          <div className="col-span-2 md:order-last">
-            <span className="font-display text-lg font-black tracking-tightest ">TORONTO</span>
+          <div className="col-span-1 min-w-0 sm:col-span-2 lg:order-last">
+            <img src={logo} alt="DEJA FRAGRANCES" className="h-8 w-auto max-w-28 object-contain" />
             <p className="mt-3 max-w-xs text-sm text-slate">{t("footer.tagline")}</p>
           </div>
 
           {/* عمود تواصل معنا واتساب */}
-          <div>
+          <div className="min-w-0">
             <h3 className="label-tracked mb-4 text-ink font-bold text-center">{t("footer.contactHeading") || "تواصل معنا"}</h3>
             <ul className="flex flex-col gap-3 text-center">
               {whatsappLinks.map((link) => (
@@ -47,7 +48,7 @@ export default function Footer() {
                     href={link.href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-sm text-slate transition-colors hover:text-ink"
+                    className="flex flex-wrap items-center justify-center gap-2 text-sm text-slate transition-colors hover:text-ink"
                   >
                     <svg
                       viewBox="0 0 24 24"
@@ -65,7 +66,7 @@ export default function Footer() {
           </div>
 
           {/* عمود روابط المساعدة والسياسات */}
-          <div>
+          <div className="min-w-0">
             <h3 className="label-tracked mb-4 text-ink font-bold text-center">{t("footer.helpHeading") || "الدعم والسياسات"}</h3>
             <ul className="flex flex-col gap-3 text-center">
               {helpLinks.map((link) => (
@@ -79,7 +80,7 @@ export default function Footer() {
           </div>
 
           {/* عمود الأقسام والمنتجات */}
-          <div>
+          <div className="min-w-0">
             <h3 className="label-tracked mb-4 text-ink font-bold text-center">{t("footer.shopHeading") || "المتجر"}</h3>
             <ul className="flex flex-col gap-3 text-center">
               {shopLinks.map((link) => (
@@ -111,7 +112,7 @@ export default function Footer() {
         </div>
 
         <div className="mt-7 flex justify-center border-t border-line pt-6 text-center text-xs text-slate-light">
-          <span>© {new Date().getFullYear()} Toronto. {t("footer.rights")}</span>
+          <span className="inline-flex items-center justify-center gap-1.5">© {new Date().getFullYear()} <img src={logo} alt="DEJA FRAGRANCES" className="h-4 w-auto max-w-14 object-contain" />. {t("footer.rights")}</span>
         </div>
       </div>
     </footer>

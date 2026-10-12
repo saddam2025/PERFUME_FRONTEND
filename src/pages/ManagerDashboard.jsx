@@ -9,7 +9,6 @@ import { formatPrice } from "../lib/formatPrice";
 import { cn } from "../lib/cn";
 import api from "../api/axios";
 import { CLOTHING_COLORS, getColorKey, normalizeColorOption } from "../constants/clothingColors";
-import { PRODUCT_TYPE_TO_CATEGORY } from "../lib/productHelpers";
 const ROLES = {
   OWNER: "Manager",
   ADMIN: "Admin",
@@ -281,11 +280,7 @@ function OrdersTab() {
                           <span className="font-semibold text-ink min-w-[30px]">{item.quantity}x</span>
                           <span className="text-ink flex-1">
                             {item.name}
-                            {(item.size || item.color) && (
-                              <span className="text-xs text-slate ms-2">
-                                {item.size ? `Size: ${item.size}` : ""}{item.size && item.color ? " · " : ""}{item.color ? `Color: ${item.color}` : ""}
-                              </span>
-                            )}
+                            {item.volumeMl && <span className="text-xs text-slate ms-2">{item.volumeMl} ml</span>}
                           </span>
                           <span className="text-slate text-xs">{formatPrice(item.price, locale, t("common.currency"))}</span>
                         </li>
@@ -871,11 +866,9 @@ const TOPS_SIZE_GUIDE_URL = "/The-Upper-Body.jpg";
 const PANTS_SIZE_GUIDE_URL = "/The-Lower-Body.jpg";
 
 const PRODUCT_TYPE_OPTIONS = [
-  { value: "t-shirt", labelEn: "T-Shirt", labelAr: "تيشيرت" },
-  { value: "jacket", labelEn: "Jacket", labelAr: "جاكيت" },
-  { value: "hoodie", labelEn: "Hoodie", labelAr: "هودي" },
-  { value: "sweater", labelEn: "Sweater", labelAr: "بلوفر" },
-  { value: "pants", labelEn: "Pants", labelAr: "بنطلون" },
+  { value: "men", labelEn: "Men", labelAr: "رجالي" },
+  { value: "women", labelEn: "Women", labelAr: "نسائي" },
+  { value: "unisex", labelEn: "Unisex", labelAr: "للجنسين" },
 ];
 
 const TOPS_SIZES = ["XS", "S", "M", "L", "XL", "XXL"];
@@ -915,6 +908,9 @@ function ProductForm({ initialData = null, onSave, onCancel }) {
   const [form, setForm] = useState({
     nameEn: initialData?.nameEn || "",
     nameAr: initialData?.nameAr || "",
+    brand: initialData?.brand || "",
+    gender: initialData?.gender || "unisex",
+    concentration: initialData?.concentration || "EDP",
     descriptionEn: initialData?.descEn || "",
     descriptionAr: initialData?.descAr || "",
     productType: initialData?.category || "t-shirt",
@@ -923,10 +919,17 @@ function ProductForm({ initialData = null, onSave, onCancel }) {
     baseProfitPerPiece: initialData?.baseProfitPerPiece || "",
     affiliateCommission: initialData?.affiliateCommission || "",
     productDiscount: initialData?.productDiscount || "",
+    longevity: initialData?.longevity || "",
+    sillage: initialData?.sillage || "",
     collections: initialData?.collections || [],
   });
 
   const [imageFiles, setImageFiles] = useState([]);
+  const [fragranceFamily, setFragranceFamily] = useState(initialData?.fragranceFamily || []);
+  const [notes, setNotes] = useState(initialData?.notes || { top: [], middle: [], base: [] });
+  const [noteDrafts, setNoteDrafts] = useState({ top: "", middle: "", base: "" });
+  const [season, setSeason] = useState(initialData?.season || []);
+  const [variants, setVariants] = useState(initialData?.variants?.length ? initialData.variants : [{ volumeMl: "", price: "", stock: 0 }]);
   const [sizeScale, setSizeScale] = useState(getSizeScaleForType(form.productType));
   const [bulkMode, setBulkMode] = useState(true);
   const [bulkQuantity, setBulkQuantity] = useState("");
@@ -1047,8 +1050,8 @@ function ProductForm({ initialData = null, onSave, onCancel }) {
     if (submitInFlight.current) return;
     setSubmitError(null);
 
-    if (!form.nameEn.trim() || !form.nameAr.trim() || !form.price) {
-      setSubmitError(locale === "ar" ? "الاسم بالإنجليزية والعربية والسعر حقول مطلوبة." : "English name, Arabic name, and price are required.");
+    if (!form.nameEn.trim() || !form.brand.trim() || !form.gender || !variants.length || variants.some((variant) => Number(variant.volumeMl) <= 0 || Number(variant.price) < 0 || Number(variant.stock) < 0)) {
+      setSubmitError(locale === "ar" ? "أدخل العلامة التجارية والاسم والجنس ومتغيرًا صالحًا واحدًا على الأقل." : "Enter a brand, name, gender, and at least one valid volume variant.");
       return;
     }
 
@@ -1057,14 +1060,14 @@ function ProductForm({ initialData = null, onSave, onCancel }) {
       return;
     }
 
-    if (form.compareAtPrice && Number(form.compareAtPrice) <= Number(form.price)) {
+    if (form.compareAtPrice && Number(form.compareAtPrice) <= Math.min(...variants.map((variant) => Number(variant.price)))) {
       setSubmitError(t("admin.originalPriceMustExceed"));
       return;
     }
 
     const colorsPayload = selectedColors.map((color) => ({ name: color.nameEn, nameEn: color.nameEn, nameAr: color.nameAr, hex: color.hex || color.swatch }));
     if (trackStockByColor && (!colorsPayload.length || !sizeScale.length)) {
-      setSubmitError(locale === "ar" ? "أضف مقاسًا ولونًا لتحديد مخزون كل تركيبة." : "Add sizes and colors to track variant stock.");
+      setSubmitError(locale === "ar" ? "أضف أحجامًا عطرية صالحة لتحديد المخزون." : "Add valid perfume volumes to track stock.");
       return;
     }
     const stockByVariantPayload = trackStockByColor ? Object.fromEntries(sizeScale.flatMap((size) => colorOptions.map((color) => [`${size}::${color}`, Number(stockByVariant[`${size}::${color}`]) || 0])).filter(([, quantity]) => quantity > 0)) : {};
@@ -1075,19 +1078,24 @@ function ProductForm({ initialData = null, onSave, onCancel }) {
     const activeSizes = sizeScale.filter((size) => Number(stockBySizePayload[size]) > 0);
 
     const formData = new FormData();
+    formData.append("name", form.nameEn.trim());
+    formData.append("description", form.descriptionEn.trim() || form.nameEn.trim());
     formData.append("nameEn", form.nameEn.trim());
     formData.append("nameAr", form.nameAr.trim());
     formData.append("descEn", form.descriptionEn.trim() || form.nameEn.trim());
     formData.append("descAr", form.descriptionAr.trim() || form.nameAr.trim());
-    formData.append("price", String(Number(form.price) || 0));
+    formData.append("brand", form.brand.trim());
+    formData.append("gender", form.gender);
+    formData.append("concentration", form.concentration);
+    formData.append("fragranceFamily", JSON.stringify(fragranceFamily));
+    formData.append("notes", JSON.stringify(notes));
+    formData.append("season", JSON.stringify(season));
+    if (form.longevity) formData.append("longevity", String(Number(form.longevity)));
+    if (form.sillage) formData.append("sillage", String(Number(form.sillage)));
+    formData.append("variants", JSON.stringify(variants.map((variant) => ({ volumeMl: Number(variant.volumeMl), price: Number(variant.price), stock: Number(variant.stock) || 0 }))));
+    formData.append("price", String(Math.min(...variants.map((variant) => Number(variant.price)))));
     formData.append("compareAtPrice", form.compareAtPrice ? String(Number(form.compareAtPrice)) : "");
-    formData.append("category", form.productType);
-    formData.append("colors", JSON.stringify(colorsPayload));
-    formData.append("sizes", JSON.stringify(activeSizes));
-    formData.append("stockBySize", JSON.stringify(stockBySizePayload));
-    formData.append("stockByVariant", JSON.stringify(stockByVariantPayload));
-    formData.append("stock", String(totalStock));
-    formData.append("sizeGuideImageUrl", getSizeGuideUrlForType(form.productType));
+    formData.append("stock", String(variants.reduce((sum, variant) => sum + (Number(variant.stock) || 0), 0)));
     formData.append("isLatestArrival", "true");
     formData.append("baseProfitPerPiece", String(Number(form.baseProfitPerPiece) || 0));
     formData.append("affiliateCommission", String(Number(form.affiliateCommission) || 0));
@@ -1135,6 +1143,11 @@ function ProductForm({ initialData = null, onSave, onCancel }) {
         <input type="text" placeholder={locale === "ar" ? "اسم المنتج (إنجليزي)" : "Product Name (English)"} value={form.nameEn} onChange={handleFieldChange("nameEn")} className="border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-ink" />
         <input type="text" placeholder={locale === "ar" ? "اسم المنتج (عربي)" : "Product Name (Arabic)"} value={form.nameAr} onChange={handleFieldChange("nameAr")} dir="rtl" className="border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-ink" />
       </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <input required placeholder={locale === "ar" ? "العلامة التجارية" : "Brand"} value={form.brand} onChange={handleFieldChange("brand")} className="border border-line bg-paper px-3 py-2 text-sm" />
+        <select value={form.gender} onChange={handleFieldChange("gender")} className="border border-line bg-paper px-3 py-2 text-sm"><option value="men">{locale === "ar" ? "رجالي" : "Men"}</option><option value="women">{locale === "ar" ? "نسائي" : "Women"}</option><option value="unisex">{locale === "ar" ? "للجنسين" : "Unisex"}</option></select>
+        <select value={form.concentration} onChange={handleFieldChange("concentration")} className="border border-line bg-paper px-3 py-2 text-sm">{["Parfum", "EDP", "EDT", "EDC", "Oil"].map((value) => <option key={value}>{value}</option>)}</select>
+      </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <textarea rows={2} placeholder={locale === "ar" ? "الوصف (إنجليزي)" : "Description (English)"} value={form.descriptionEn} onChange={handleFieldChange("descriptionEn")} className="resize-none border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-ink" />
@@ -1142,46 +1155,26 @@ function ProductForm({ initialData = null, onSave, onCancel }) {
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <select value={form.productType} onChange={(e) => handleProductTypeChange(e.target.value)} className="border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-ink">
-          {PRODUCT_TYPE_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>{locale === "ar" ? opt.labelAr : opt.labelEn}</option>
-          ))}
-        </select>
+        <span className="flex items-center border border-line px-3 text-sm text-slate">{locale === "ar" ? "الأسعار والمخزون حسب الحجم أدناه" : "Price and stock are set by volume below"}</span>
         <input type="number" min={0} placeholder={locale === "ar" ? "السعر" : "Price"} value={form.price} onChange={handleFieldChange("price")} className="border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-ink" />
         <input type="number" min={0} placeholder={locale === "ar" ? "السعر قبل الخصم (اختياري)" : "Compare-at Price (optional)"} value={form.compareAtPrice} onChange={handleFieldChange("compareAtPrice")} className="border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-ink" />
       </div>
 
+      <div className="space-y-3 border border-line p-3">
+        <p className="text-xs font-semibold text-slate">{locale === "ar" ? "العائلات العطرية" : "Fragrance families"}</p>
+        <div className="flex flex-wrap gap-3">{["woody", "floral", "oriental", "fresh", "citrus", "gourmand", "musky", "aromatic"].map((family) => <label key={family} className="flex items-center gap-1.5 text-sm"><input type="checkbox" checked={fragranceFamily.includes(family)} onChange={() => setFragranceFamily((old) => old.includes(family) ? old.filter((entry) => entry !== family) : [...old, family])} />{family}</label>)}</div>
+        {(["top", "middle", "base"]).map((level) => <div key={level}><label className="text-xs font-semibold">{locale === "ar" ? ({ top: "مقدمة العطر", middle: "قلب العطر", base: "قاعدة العطر" }[level]) : `${level} notes`}</label><div className="flex gap-2"><input value={noteDrafts[level]} onChange={(event) => setNoteDrafts((old) => ({ ...old, [level]: event.target.value }))} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); const note = noteDrafts[level].trim().toLowerCase(); if (note) setNotes((old) => ({ ...old, [level]: Array.from(new Set([...old[level], note])) })); setNoteDrafts((old) => ({ ...old, [level]: "" })); } }} className="min-w-0 flex-1 border border-line px-3 py-2 text-sm" placeholder={locale === "ar" ? "أضف ملاحظة واضغط Enter" : "Add a note and press Enter"} />{notes[level].map((note) => <button key={note} type="button" onClick={() => setNotes((old) => ({ ...old, [level]: old[level].filter((entry) => entry !== note) }))} className="border px-2 text-xs">{note} ×</button>)}</div></div>)}
+        <div className="flex flex-wrap gap-3">{["spring", "summer", "autumn", "winter"].map((value) => <label key={value} className="flex items-center gap-1.5 text-sm"><input type="checkbox" checked={season.includes(value)} onChange={() => setSeason((old) => old.includes(value) ? old.filter((entry) => entry !== value) : [...old, value])} />{value}</label>)}</div>
+        <div className="grid grid-cols-2 gap-3"><label className="text-xs">{locale === "ar" ? "الثبات (1–5)" : "Longevity (1–5)"}<input type="number" min="1" max="5" value={form.longevity || initialData?.longevity || ""} onChange={handleFieldChange("longevity")} className="mt-1 w-full border px-3 py-2" /></label><label className="text-xs">{locale === "ar" ? "الفوحان (1–5)" : "Sillage (1–5)"}<input type="number" min="1" max="5" value={form.sillage || initialData?.sillage || ""} onChange={handleFieldChange("sillage")} className="mt-1 w-full border px-3 py-2" /></label></div>
+      </div>
+
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <input type="number" min={0} placeholder={locale === "ar" ? "الربح الأساسي للقطعة (مبلغ ثابت)" : "Base Profit per piece (Fixed Amount)"} value={form.baseProfitPerPiece} onChange={handleFieldChange("baseProfitPerPiece")} className="border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-ink" />
+        <input type="number" min={0} placeholder={locale === "ar" ? "الربح الأساسي للمنتج (مبلغ ثابت)" : "Base Profit per product (Fixed Amount)"} value={form.baseProfitPerPiece} onChange={handleFieldChange("baseProfitPerPiece")} className="border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-ink" />
         <input type="number" min={0} placeholder={locale === "ar" ? "عمولة المسوق (مبلغ ثابت)" : "Affiliate Commission (Fixed Amount)"} value={form.affiliateCommission} onChange={handleFieldChange("affiliateCommission")} className="border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-ink" />
         <input type="number" min={0} placeholder={locale === "ar" ? "خصم العميل (مبلغ ثابت)" : "Customer Discount (Fixed Amount)"} value={form.productDiscount} onChange={handleFieldChange("productDiscount")} className="border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-ink" />
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div className="space-y-3 border border-line bg-paper p-3">
-          <label className="block text-xs font-semibold text-slate">{t("admin.colorSearchTitle")}
-            <input type="search" value={colorSearch} onChange={(event) => setColorSearch(event.target.value)} placeholder={t("admin.colorSearchPlaceholder")} className="mt-1 w-full border border-line bg-paper px-3 py-2 text-sm text-ink" />
-          </label>
-          <div className="max-h-44 overflow-y-auto border border-line">
-            {filteredColors.map((color) => {
-              const selected = selectedColors.some((item) => getColorKey(item) === getColorKey(color));
-              return <button key={color.nameEn} type="button" onClick={() => toggleColor(color)} aria-pressed={selected} className="flex w-full items-center gap-2 px-3 py-2 text-start text-sm hover:bg-paper-dim">
-                <span className="h-5 w-5 shrink-0 rounded-full border border-line" style={{ backgroundColor: color.hex }} />
-                <span>{locale === "ar" ? color.nameAr : color.nameEn}</span>{selected && <Check size={14} className="ms-auto" />}
-              </button>;
-            })}
-            {colorSearch.trim() && filteredColors.length === 0 && <button type="button" onClick={() => setCustomColorName(colorSearch.trim())} className="w-full px-3 py-2 text-start text-sm font-semibold text-accent-deep">{t("admin.addCustomColor")}: {colorSearch.trim()}</button>}
-          </div>
-          {colorSearch.trim() && filteredColors.length === 0 && <div className="flex flex-wrap items-end gap-2">
-            <label className="min-w-36 flex-1 text-xs text-slate">{t("admin.customColorName")}<input value={customColorName} onChange={(event) => setCustomColorName(event.target.value)} className="mt-1 w-full border border-line px-2 py-1.5 text-sm text-ink" /></label>
-            <label className="text-xs text-slate">{t("admin.customColorHex")}<input type="color" value={customColorHex} onChange={(event) => setCustomColorHex(event.target.value)} className="mt-1 block h-9 w-12 border border-line bg-paper p-1" /></label>
-            <button type="button" onClick={addCustomColor} className="bg-ink px-3 py-2 text-xs font-semibold text-paper">{t("admin.addColor")}</button>
-          </div>}
-          {selectedColors.length > 0 && <div className="flex flex-wrap gap-2">{selectedColors.map((color) => <span key={getColorKey(color)} className="inline-flex items-center gap-2 border border-line px-2 py-1 text-xs">
-            <span className="h-4 w-4 rounded-full border border-line" style={{ backgroundColor: color.swatch }} />{locale === "ar" ? color.nameAr : color.nameEn}
-            <button type="button" onClick={() => setSelectedColors((previous) => previous.filter((item) => getColorKey(item) !== getColorKey(color)))} aria-label={t("admin.removeColor", { color: locale === "ar" ? color.nameAr : color.nameEn })} className="font-bold">×</button>
-          </span>)}</div>}
-        </div>
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-medium text-slate">
             {locale === "ar" ? "صور المنتج (من الجهاز)" : "Product Images (from device)"}
@@ -1191,61 +1184,11 @@ function ProductForm({ initialData = null, onSave, onCancel }) {
         </div>
       </div>
 
-      {allCollections.length > 0 && (
-        <div className="border-t border-line pt-4">
-          <label className="text-xs font-medium text-slate mb-2 block">
-            {locale === "ar" ? "المجموعات" : "Collections"}
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {allCollections.map(c => (
-              <label key={c._id} className="flex items-center gap-2 cursor-pointer bg-paper-dim px-2 py-1 text-sm border border-line">
-                <input type="checkbox" checked={form.collections.includes(c._id)} onChange={() => toggleCollection(c._id)} className="accent-ink" />
-                {locale === "ar" ? c.nameAr : c.nameEn}
-              </label>
-            ))}
-          </div>
-        </div>
-      )}
-
+      {allCollections.length > 0 && <div className="border-t border-line pt-4"><label className="mb-2 block text-xs font-medium text-slate">{locale === "ar" ? "المجموعات" : "Collections"}</label><div className="flex flex-wrap gap-2">{allCollections.map((collection) => <label key={collection._id} className="flex items-center gap-2 border border-line bg-paper-dim px-2 py-1 text-sm"><input type="checkbox" checked={form.collections.includes(collection._id)} onChange={() => toggleCollection(collection._id)} />{locale === "ar" ? collection.nameAr : collection.nameEn}</label>)}</div></div>}
       <div className="border-t border-line pt-4">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate">
-          {locale === "ar" ? "طريقة تحديد المخزون" : "Stock Entry Method"}
-        </p>
-
-        <label className="mb-4 flex items-center gap-2 text-sm font-medium text-ink"><input type="checkbox" checked={trackStockByColor} onChange={(event) => setTrackStockByColor(event.target.checked)} />{locale === "ar" ? "تحديد مخزون منفصل لكل مقاس ولون" : "Track stock separately for each size and color"}</label>
-        {trackStockByColor ? <div className="overflow-x-auto"><table className="min-w-full border border-line text-sm"><thead className="bg-paper-dim"><tr><th className="p-2 text-start">{locale === "ar" ? "المقاس" : "Size"}</th>{selectedColors.map((color, index) => <th key={colorOptions[index]} className="p-2 text-start">{locale === "ar" ? color.nameAr : color.nameEn}</th>)}</tr></thead><tbody>{sizeScale.map((size) => <tr key={size} className="border-t border-line"><th className="p-2 text-start">{size}</th>{colorOptions.map((color) => <td key={color} className="p-2"><input aria-label={`${size} ${color} stock`} type="number" min={0} value={stockByVariant[`${size}::${color}`] || ""} onChange={handleVariantStockChange(size, color)} className="w-20 border border-line bg-paper px-2 py-1.5" /></td>)}</tr>)}</tbody></table></div> : <>
-        <div className="flex flex-col gap-2 sm:flex-row sm:gap-6">
-          <label className="flex items-center gap-2 text-sm text-ink">
-            <input type="radio" name="bulkMode" checked={bulkMode} onChange={() => handleBulkModeToggle(true)} className="h-4 w-4 border border-line text-ink accent-ink" />
-            {locale === "ar" ? "كمية واحدة لكل المقاسات" : "Apply same quantity to all sizes"}
-          </label>
-
-          <label className="flex items-center gap-2 text-sm text-ink">
-            <input type="radio" name="bulkMode" checked={!bulkMode} onChange={() => handleBulkModeToggle(false)} className="h-4 w-4 border border-line text-ink accent-ink" />
-            {locale === "ar" ? "تحديد الكمية لكل مقاس يدويًا" : "Set per size manually"}
-          </label>
-        </div>
-
-        {bulkMode ? (
-          <div className="mt-4 max-w-xs">
-            <label className="mb-1.5 block text-xs font-medium text-slate">
-              {locale === "ar" ? "الكمية لكل المقاسات" : "Quantity for all sizes"}
-            </label>
-            <input type="number" min={0} value={bulkQuantity} onChange={handleBulkQuantityChange} placeholder="0" className="w-full border border-line bg-paper px-3 py-2 text-sm text-ink focus:border-ink" />
-          </div>
-        ) : (
-          <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-6">
-            {sizeScale.map((size) => (
-              <div key={size}>
-                <label className="mb-1 block text-center text-xs font-semibold text-slate">{size}</label>
-                <input type="number" min={0} value={stockBySize[size]} onChange={handlePerSizeChange(size)} placeholder="0" className="w-full border border-line bg-paper px-2 py-2 text-center text-sm text-ink focus:border-ink" />
-              </div>
-            ))}
-          </div>
-        )}
-        </>}
+        <div className="mb-3 flex items-center justify-between"><h4 className="text-sm font-semibold">{locale === "ar" ? "الأحجام والأسعار والمخزون" : "Volumes, prices and stock"}</h4><button type="button" onClick={() => setVariants((rows) => [...rows, { volumeMl: "", price: "", stock: 0 }])} className="border px-3 py-1.5 text-xs">{locale === "ar" ? "إضافة حجم" : "Add volume"}</button></div>
+        <div className="space-y-2">{variants.map((variant, index) => <div key={index} className="grid grid-cols-4 gap-2"><input aria-label="Volume ml" type="number" min="1" placeholder="ml" value={variant.volumeMl} onChange={(event) => setVariants((rows) => rows.map((row, i) => i === index ? { ...row, volumeMl: event.target.value } : row))} className="border px-3 py-2 text-sm"/><input aria-label="Price" type="number" min="0" placeholder={locale === "ar" ? "السعر" : "Price"} value={variant.price} onChange={(event) => setVariants((rows) => rows.map((row, i) => i === index ? { ...row, price: event.target.value } : row))} className="border px-3 py-2 text-sm"/><input aria-label="Stock" type="number" min="0" placeholder={locale === "ar" ? "المخزون" : "Stock"} value={variant.stock} onChange={(event) => setVariants((rows) => rows.map((row, i) => i === index ? { ...row, stock: event.target.value } : row))} className="border px-3 py-2 text-sm"/><button type="button" disabled={variants.length === 1} onClick={() => setVariants((rows) => rows.filter((_, i) => i !== index))} className="border px-2 text-sm disabled:opacity-40">{locale === "ar" ? "حذف" : "Remove"}</button></div>)}</div>
       </div>
-
       <div className="flex justify-end border-t border-line pt-4 gap-2">
         {initialData && (
           <button type="button" onClick={onCancel} disabled={submitting} className="flex items-center gap-1.5 border border-line px-6 py-2.5 text-xs font-semibold uppercase tracking-wide text-ink transition-opacity hover:bg-paper-dim">
@@ -1282,7 +1225,7 @@ function AddCollectionForm({ onAdd }) {
       setLoadingProducts(true);
       setProductsError(null);
       try {
-        const { data } = await api.get("/products", { params: { category: activeCategory } });
+        const { data } = await api.get("/products", { params: { gender: activeCategory } });
         if (!cancelled) setCategoryProducts(data?.data?.products || []);
       } catch (err) {
         if (!cancelled) setProductsError(err.response?.data?.message || err.message || (locale === "ar" ? "تعذر تحميل المنتجات." : "Could not load products."));
@@ -1524,7 +1467,7 @@ function ProductsAndCollectionsTab() {
               <thead>
                 <tr className="border-b border-line bg-paper-dim">
                   <th className="label-tracked px-4 py-3 text-start text-slate">{t("admin.productName")}</th>
-                  <th className="label-tracked px-4 py-3 text-start text-slate">{t("admin.productCategory")}</th>
+                  <th className="label-tracked px-4 py-3 text-start text-slate">{t("admin.productGender")}</th>
                   <th className="label-tracked px-4 py-3 text-start text-slate">{t("admin.productPrice")}</th>
                   <th className="label-tracked px-4 py-3 text-start text-slate">{t("admin.productStock")}</th>
                   <th className="label-tracked px-4 py-3 text-start text-slate" />
@@ -1534,9 +1477,7 @@ function ProductsAndCollectionsTab() {
                 {products.map((product) => {
                   const productId = product._id || product.id;
                   const displayName = (locale === "ar" ? (product.nameAr || product.nameKey) : (product.nameEn || product.nameKey)) || product.name;
-                  const displayCategory = product.category
-                    ? t(`categories.${PRODUCT_TYPE_TO_CATEGORY[product.category] || product.category}`)
-                    : "-";
+                  const displayCategory = product.gender ? t(`shop.genderOptions.${product.gender}`) : "—";
                   return (
                     <tr key={productId} className="border-b border-line last:border-0">
                       <td className="px-4 py-3 text-sm font-medium text-ink">{displayName}</td>

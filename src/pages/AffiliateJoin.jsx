@@ -247,7 +247,7 @@ export default function AffiliateJoin() {
               type="text"
               value={form.proposedCode}
               onChange={handleChange("proposedCode")}
-              placeholder="TORONTO10"
+              placeholder="DEJA10"
               className={cn(
                 "w-full border bg-paper px-3 py-2.5 text-sm uppercase text-ink placeholder:normal-case placeholder:text-slate-light focus:border-ink",
                 errors.proposedCode ? "border-red-700" : "border-line"

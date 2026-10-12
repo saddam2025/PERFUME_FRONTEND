@@ -7,14 +7,14 @@ export default function ReturnPolicy() {
   const isAr = locale === "ar";
 
   const paragraphs = isAr ? [
-    "متاح الاستبدال أو الاسترجاع في حالة القطعة غير مناسبة للعميل (مقاس أو خامة غير مناسبة - القطعة عكس المتوقع)، خلال 7 أيام من تاريخ استلام الأوردر بشرط تكون القطعة سليمة وفي حالتها الأصلية. (يتحمل العميل مصاريف شحن التسليم و الاستبدال/الاسترجاع).",
-    "ملحوظة مهمة: نظرًا لاختلاف طبيعة الأجسام من شخص لآخر، قد لا يكون المقاس المختار مناسب بشكل تام، وهو أمر وارد وطبيعي لا يُعتبر خطأ من أي طرف. لذلك، نحن نوفر إمكانية الاستبدال أو الاسترجاع لضمان أفضل تجربة.",
-    "في حالة وجود عيب تصنيع أو إرسال منتج خاطئ (لا يتحمل العميل مصاريف شحن التسليم والاستبدال/الاسترجاع). (ننصح بمراجعة القطعة جيداً عند الاستلام).",
+    "يمكن طلب الاستبدال أو الاسترجاع إذا لم يكن العطر مناسبًا أو اختلف عن المتوقع، خلال 7 أيام من الاستلام، بشرط بقاء المنتج سليمًا وفي حالته الأصلية. ويتحمل العميل مصاريف الشحن.",
+    "تختلف تفضيلات الروائح من شخص لآخر؛ لذلك قد لا تناسبك الرائحة كما توقعت. نوفر خيارات الاستبدال أو الاسترجاع وفق الشروط الموضحة لضمان تجربة أفضل.",
+    "في حالة وجود عيب أو استلام منتج خاطئ، لا يتحمل العميل مصاريف شحن الاستبدال أو الاسترجاع. يُرجى مراجعة الطلب عند الاستلام.",
     "في حالة الاسترجاع: يتم رد المبلغ المستحق (بعد مراجعة الأوردر للتأكد من سلامته) من خلال المحافظ الإلكترونية أو الحساب البنكي خلال 5 أيام عمل من تاريخ استلام الأوردر من العميل."
   ] : [
-    "Exchanges or returns are available if the item is not suitable (unfitting size, fabric preference, or if it differs from expectations) within 7 days from the delivery date, provided the item is undamaged and in its original condition. (The customer bears the shipping fees for delivery and exchange/return).",
-    "Important Note: Due to variations in body shapes, the chosen size may not fit perfectly. This is perfectly normal and is not considered an error by either party. Thus, we gladly provide flexible exchange and return options to ensure your absolute satisfaction.",
-    "In the event of a manufacturing defect or an incorrect item being sent, the customer will not bear any shipping or exchange/return fees. (We highly recommend inspecting the items carefully upon receipt).",
+    "You may request an exchange or return if a fragrance is unsuitable or differs from expectations within 7 days of delivery, provided the product is undamaged and in its original condition. The customer bears the shipping fees.",
+    "Fragrance preferences vary from person to person, so a scent may not suit you as expected. Exchange and return options are available under the terms listed here to support a better experience.",
+    "If a product is defective or the wrong item was sent, the customer will not bear exchange or return shipping fees. Please check your order upon receipt.",
     "In case of a refund: The due amount will be refunded (after inspecting the returned items to ensure safety and condition) via electronic wallets or bank transfer within 5 business days from the date we receive the package back."
   ];
 

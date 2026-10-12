@@ -1,24 +1,4 @@
 // Pure, shape-agnostic helpers shared by Shop, ProductDetails, and ProductCard.
-import { getColorKey, normalizeColorOption } from "../constants/clothingColors";
-export const sizesAvailable = ["XS", "S", "M", "L", "XL", "XXL", "32", "34", "36", "38", "40", "42"];
-
-export const categories = ["tshirts", "jackets", "hoodies", "sweaters", "pants"];
-
-export const CATEGORY_TO_PRODUCT_TYPE = {
-  tshirts: "t-shirt",
-  jackets: "jacket",
-  hoodies: "hoodie",
-  sweaters: "sweater",
-  pants: "pants",
-};
-
-export const PRODUCT_TYPE_TO_CATEGORY = {
-  "t-shirt": "tshirts",
-  jacket: "jackets",
-  hoodie: "hoodies",
-  sweater: "sweaters",
-  pants: "pants",
-};
 
 export function getPromotionHint(promotion, locale = "en") {
   const tier = (promotion?.tiers || []).slice().sort((a, b) => b.minQty - a.minQty)[0] || {};
@@ -28,65 +8,51 @@ export function getPromotionHint(promotion, locale = "en") {
 }
 
 /**
- * Converts a raw API product (per backend/models/Product.js) into the shape
- * ProductCard / ProductDetails / Cart expect.
- *
- * FIXED: this previously read apiProduct.name, apiProduct.description,
- * apiProduct.productType, and apiProduct.productImageUrl — none of which
- * exist on the real schema (nameEn/descEn/category/imageUrls do). Every
- * product image was silently dropping out right here, before any
- * BASE_URL/env-var logic downstream ever got a chance to run.
+ * Converts a raw API perfume into the shared UI product shape.
  */
 export function mapApiProductToUiProduct(apiProduct) {
+  const variants = Array.isArray(apiProduct.variants) ? apiProduct.variants.map((variant) => ({
+    ...variant,
+    volumeMl: Number(variant.volumeMl),
+    price: Number(variant.price),
+    stock: Number(variant.stock) || 0,
+  })) : [];
+  const minPrice = variants.length ? Math.min(...variants.map((variant) => variant.price)) : Number(apiProduct.price) || 0;
   return {
     id: apiProduct._id,
-    nameEn: apiProduct.nameEn,
+    brand: apiProduct.brand,
+    nameEn: apiProduct.name || apiProduct.nameEn,
     nameAr: apiProduct.nameAr,
-    nameKey: apiProduct.nameEn, // legacy alias, kept in case other code still reads this
-    descriptionEn: apiProduct.descEn,
+    nameKey: apiProduct.name || apiProduct.nameEn,
+    descriptionEn: apiProduct.description || apiProduct.descEn,
     descriptionAr: apiProduct.descAr,
-    descriptionKey: apiProduct.descEn, // legacy alias
-    category: PRODUCT_TYPE_TO_CATEGORY[apiProduct.category] || apiProduct.category,
-    price: apiProduct.price,
+    descriptionKey: apiProduct.description || apiProduct.descEn, // legacy alias
+    gender: apiProduct.gender,
+    concentration: apiProduct.concentration,
+    fragranceFamily: Array.isArray(apiProduct.fragranceFamily) ? apiProduct.fragranceFamily : [],
+    notes: apiProduct.notes || { top: [], middle: [], base: [] },
+    season: Array.isArray(apiProduct.season) ? apiProduct.season : [],
+    occasion: Array.isArray(apiProduct.occasion) ? apiProduct.occasion : [],
+    longevity: apiProduct.longevity,
+    sillage: apiProduct.sillage,
+    variants,
+    minPrice,
+    price: minPrice,
     compareAtPrice: apiProduct.compareAtPrice ?? null,
-    sizes: Array.isArray(apiProduct.sizes) ? apiProduct.sizes : [],
-    colors: Array.isArray(apiProduct.colors) ? apiProduct.colors.map(normalizeColorOption) : [],
     isNew: Boolean(apiProduct.isLatestArrival),
-    stockBySize: apiProduct.stockBySize || {},
-    stockByVariant: apiProduct.stockByVariant || {},
-    stock: apiProduct.stock ?? 0,
-    // The actual fix: read the real field name, keep it as an array.
+    stock: apiProduct.stock ?? variants.reduce((sum, variant) => sum + variant.stock, 0),
     imageUrls: Array.isArray(apiProduct.imageUrls) ? apiProduct.imageUrls : [],
-    sizeGuideImageUrl: apiProduct.sizeGuideImageUrl || null,
     promotions: apiProduct.promotions || [],
     hasActivePromotion: Boolean(apiProduct.hasActivePromotion || apiProduct.promotions?.length),
     promotionHint: apiProduct.promotionHint || apiProduct.promotions?.[0]?.hint || null,
   };
 }
 
-export function getStockForSize(product, size, color) {
-  const colorKey = getColorKey(color);
-  if (product?.stockByVariant) {
-    const variants = product.stockByVariant instanceof Map ? Object.fromEntries(product.stockByVariant) : product.stockByVariant;
-    const entries = Object.entries(variants);
-    if (entries.length) {
-      return entries.reduce((sum, [key, stock]) => {
-        const [variantSize, variantColor] = key.split("::");
-        return sum + (variantSize === String(size || "*") && (!colorKey || variantColor === colorKey) ? Number(stock) || 0 : 0);
-      }, 0);
-    }
-  }
-  const stockBySize = product?.stockBySize instanceof Map ? Object.fromEntries(product.stockBySize) : product?.stockBySize;
-  if (size && stockBySize?.[size] !== undefined) return Number(stockBySize[size]) || 0;
-  return Number(product?.stock) || 0;
+export function getStockForVolume(product, volumeMl) {
+  return Number(product?.variants?.find((variant) => Number(variant.volumeMl) === Number(volumeMl))?.stock) || 0;
 }
 
 export function getTotalStock(product) {
-  if (product?.stockByVariant) {
-    const variants = product.stockByVariant instanceof Map ? Object.fromEntries(product.stockByVariant) : product.stockByVariant;
-    if (Object.keys(variants).length) return Object.values(variants).reduce((sum, value) => sum + (Number(value) || 0), 0);
-  }
-  const stockBySize = product?.stockBySize instanceof Map ? Object.fromEntries(product.stockBySize) : product?.stockBySize;
-  if (Object.keys(stockBySize || {}).length) return Object.values(stockBySize).reduce((sum, n) => sum + (Number(n) || 0), 0);
+  if (product?.variants?.length) return product.variants.reduce((sum, variant) => sum + (Number(variant.stock) || 0), 0);
   return Number(product?.stock) || 0;
 }
