@@ -43,6 +43,7 @@ export default function FilterSidebar({ searchParams, updateFilter, batchUpdateF
       {values.map((value) => (
         <label key={value} className="flex cursor-pointer items-center gap-2.5">
           <input
+            data-motion-interactive
             type="checkbox"
             checked={selected(key).includes(String(value))}
             onChange={() => toggleValue(searchParams, updateFilter, key, value)}
@@ -60,7 +61,7 @@ export default function FilterSidebar({ searchParams, updateFilter, batchUpdateF
     <div className="flex flex-col">
       <div className="flex items-center justify-between pb-5">
         <h2 className="label-tracked text-ink">{t("shop.filters")}</h2>
-        <button type="button" onClick={onClear} className="text-xs font-medium text-slate underline-offset-2 hover:text-ink hover:underline">
+        <button type="button" data-motion-interactive onClick={onClear} className="text-xs font-medium text-slate underline-offset-2 hover:text-ink hover:underline">
           {t("shop.clearAll")}
         </button>
       </div>

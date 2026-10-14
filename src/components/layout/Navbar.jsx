@@ -37,7 +37,7 @@ function NavLinks({ className, onLinkClick, compact = false }) {
     { to: "/contact",     label: t("navbar.contact") },
   ];
   return (
-    <nav className={className}>
+    <nav className={className} data-motion-nav>
       {links.map((link) => (
         <NavLink
           key={link.to}
@@ -75,10 +75,7 @@ export default function Navbar() {
 
   useEffect(() => {
     if (!mobileSearchOpen && window.matchMedia("(max-width: 1023px)").matches) return undefined;
-    if (searchTerm.trim().length < 2) {
-      setSuggestions([]);
-      return undefined;
-    }
+    if (searchTerm.trim().length < 2) return undefined;
     const controller = new AbortController();
     suggestionController.current = controller;
     const timer = window.setTimeout(async () => {
@@ -212,7 +209,7 @@ export default function Navbar() {
             <label className="sr-only" htmlFor="navbar-search">{t("navbar.search")}</label>
             <div className="flex items-center border border-line bg-paper">
               <Search className="ms-3 shrink-0 text-slate" size={16} />
-              <input id="navbar-search" value={searchTerm} onChange={(event) => { setSearchTerm(event.target.value); setSuggestionsOpen(true); }} onFocus={() => { if (suggestions.length) setSuggestionsOpen(true); }} placeholder={t("navbar.searchPlaceholder")} className="w-full min-w-0 bg-transparent px-2 py-2 text-sm outline-none lg:w-32 xl:w-40" />
+              <input id="navbar-search" value={searchTerm} onChange={(event) => { const nextTerm = event.target.value; setSearchTerm(nextTerm); setSuggestionsOpen(true); if (nextTerm.trim().length < 2) setSuggestions([]); }} onFocus={() => { if (suggestions.length) setSuggestionsOpen(true); }} placeholder={t("navbar.searchPlaceholder")} className="w-full min-w-0 bg-transparent px-2 py-2 text-sm outline-none lg:w-32 xl:w-40" />
             </div>
             {suggestionsOpen && searchTerm.trim().length >= 2 && <div className="absolute start-0 top-full z-[60] mt-1 w-full min-w-64 border border-line bg-paper shadow-lg">
               {suggestions.length ? suggestions.map((suggestion) => <button key={suggestion._id} type="button" onClick={() => { setSuggestionsOpen(false); setMobileSearchOpen(false); navigate(`/product/${suggestion._id}`); }} className="flex w-full items-center gap-3 border-b border-line p-3 text-start last:border-b-0 hover:bg-paper-dim">
@@ -225,6 +222,7 @@ export default function Navbar() {
 
           <Link
             to="/cart"
+            data-motion-interactive
             className="order-1 relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-ink transition-colors hover:bg-paper-dim lg:order-3"
             aria-label="Cart"
           >

@@ -1,0 +1,207 @@
+:root {
+  --motion-fast: 240ms;
+  --motion-base: 520ms;
+  --motion-slow: 760ms;
+  --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-distance: 18px;
+  --motion-hover-scale: 1.04;
+  --motion-stagger-limit: 500ms;
+  --motion-stagger-step: 70ms;
+  --motion-logo-start-scale: 0.96;
+  --motion-active-scale: 0.98;
+  --motion-card-lift: -3px;
+  --motion-splash-min: 1200ms;
+  --motion-splash-max: 3000ms;
+  --motion-splash-fade: 280ms;
+  --motion-splash-failsafe: 4s;
+}
+
+html[dir="ltr"] {
+  --motion-inline-origin: left;
+}
+
+html[dir="rtl"] {
+  --motion-inline-origin: right;
+}
+
+html.js .motion-pending {
+  opacity: 0;
+  transform: translateY(var(--motion-distance));
+}
+
+html.motion-public .motion-enter {
+  animation: motion-rise var(--motion-base) var(--motion-ease) var(--motion-delay, 0ms) both;
+}
+
+html.motion-public .motion-enter[data-motion-kind="logo"] img {
+  animation: motion-logo var(--motion-slow) var(--motion-ease) var(--motion-delay, 0ms) both;
+}
+
+.motion-visible {
+  opacity: 1;
+  transform: none;
+}
+
+@keyframes motion-rise {
+  from { opacity: 0; transform: translateY(var(--motion-distance)); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes motion-logo {
+  from { opacity: 0; transform: scale(var(--motion-logo-start-scale)); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes motion-added {
+  50% { transform: scale(var(--motion-logo-start-scale)); }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  html.motion-public [data-motion-nav] a {
+    position: relative;
+    text-decoration: none;
+  }
+
+  html.motion-public [data-motion-nav] a::after {
+    position: absolute;
+    inset-inline: 0;
+    bottom: -0.35em;
+    height: 1px;
+    background: currentColor;
+    content: "";
+    opacity: 0.65;
+    transform: scaleX(0);
+    transform-origin: var(--motion-inline-origin);
+    transition: transform var(--motion-fast) var(--motion-ease);
+  }
+
+  html.motion-public [data-motion-nav] a:hover::after,
+  html.motion-public [data-motion-nav] a:focus-visible::after {
+    transform: scaleX(1);
+  }
+
+  html.motion-public [data-motion-card] {
+    position: relative;
+    isolation: isolate;
+    transition: transform var(--motion-fast) var(--motion-ease);
+  }
+
+  html.motion-public [data-motion-card]::after {
+    position: absolute;
+    z-index: -1;
+    inset: 2px;
+    border-radius: inherit;
+    box-shadow: 0 10px 28px rgb(14 14 16 / 12%);
+    content: "";
+    opacity: 0;
+    transition: opacity var(--motion-base) var(--motion-ease);
+    pointer-events: none;
+  }
+
+  html.motion-public [data-motion-card]:hover {
+    transform: translateY(var(--motion-card-lift));
+  }
+
+  html.motion-public [data-motion-card]:hover::after {
+    opacity: 1;
+  }
+
+  html.motion-public [data-motion-image] {
+    transition: transform var(--motion-base) var(--motion-ease), opacity var(--motion-base) var(--motion-ease);
+  }
+
+  html.motion-public [data-motion-card]:hover [data-motion-image] {
+    transform: scale(var(--motion-hover-scale));
+  }
+}
+
+html.motion-public [data-motion-interactive] {
+  transition: transform var(--motion-fast) var(--motion-ease), opacity var(--motion-fast) var(--motion-ease);
+}
+
+html.motion-public [data-motion-interactive]:active {
+  transform: scale(var(--motion-active-scale));
+}
+
+html.motion-public [data-motion-interactive][data-added="true"] {
+  animation: motion-added var(--motion-fast) var(--motion-ease);
+}
+
+.site-splash {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--color-paper);
+  opacity: 1;
+  visibility: visible;
+  pointer-events: none;
+  animation: splash-failsafe var(--motion-splash-failsafe) linear forwards;
+}
+
+.site-splash.is-leaving {
+  animation: none;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--motion-splash-fade) var(--motion-ease);
+}
+
+.site-splash-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+}
+
+.site-splash-logo {
+  width: min(58vw, 220px);
+  height: auto;
+  animation: motion-logo var(--motion-slow) var(--motion-ease) both;
+}
+
+.site-splash-loader {
+  width: 72px;
+  height: 1px;
+  overflow: hidden;
+  background: var(--color-line);
+}
+
+.site-splash-loader::after {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--color-ink);
+  content: "";
+  animation: splash-loader var(--motion-slow) var(--motion-ease) 2 alternate;
+}
+
+@keyframes splash-loader {
+  from { transform: scaleX(0.2); }
+  to { transform: scaleX(1); }
+}
+
+@keyframes splash-failsafe {
+  0%, 88% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.js .motion-pending {
+    opacity: 1;
+    transform: none;
+  }
+
+  html.motion-public .motion-enter,
+  html.motion-public .motion-enter[data-motion-kind="logo"] img,
+  html.motion-public [data-motion-interactive][data-added="true"] {
+    animation: none;
+  }
+
+  html.motion-public [data-motion-card],
+  html.motion-public [data-motion-image],
+  html.motion-public [data-motion-interactive],
+  html.motion-public [data-motion-nav] a::after {
+    transition: none;
+  }
+}

@@ -45,13 +45,14 @@ export default function ProductCard({ product }) {
   };
 
   return (
-    <div className="group flex flex-col">
+    <div className="group flex flex-col" data-motion-card>
       <Link to={`/product/${product._id || product.id}`} className="relative block aspect-[3/4] w-full overflow-hidden border border-line bg-paper flex items-center justify-center">
         {primaryImage ? (
           <img
             src={BASE_URL + primaryImage}
             alt={name}
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+            data-motion-image
+            className="h-full w-full object-cover"
           />
         ) : (
           <ImageIcon className="text-line w-12 h-12" />
@@ -111,6 +112,7 @@ export default function ProductCard({ product }) {
             <button
               key={variant.volumeMl}
               type="button"
+              data-motion-interactive
               disabled={Number(variant.stock) <= 0}
               onClick={() => setSelectedVolumeMl(variant.volumeMl)}
               className={`flex h-7 items-center justify-center border px-2 text-[11px] font-medium transition-colors disabled:cursor-not-allowed disabled:line-through disabled:text-slate-light ${
@@ -127,6 +129,8 @@ export default function ProductCard({ product }) {
 
         <button
           type="button"
+          data-motion-interactive
+          data-added={justAdded ? "true" : "false"}
           onClick={handleAddToCart}
           disabled={isSoldOut || variantStock <= 0}
           className="mt-4 mt-auto flex w-full items-center justify-center gap-2 border border-ink bg-ink py-2.5 text-xs font-semibold uppercase tracking-wide text-paper transition-colors hover:bg-ink/85 disabled:cursor-not-allowed disabled:border-line disabled:bg-line disabled:text-slate-light"

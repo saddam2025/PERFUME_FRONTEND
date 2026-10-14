@@ -156,7 +156,7 @@ export default function ProductDetails() {
         <div className="flex flex-col gap-3">
           <div className="aspect-[3/4] w-full border border-line bg-paper flex items-center justify-center overflow-hidden">
             {galleryImages.length > 0 ? (
-              <img src={galleryImages[activeImage]} alt={name} className="h-full w-full object-cover" />
+              <img src={galleryImages[activeImage]} alt={name} data-motion-image className="h-full w-full object-cover" />
             ) : (
               <ImageIcon className="text-line w-20 h-20" />
             )}
@@ -246,6 +246,7 @@ export default function ProductDetails() {
                     <button
                       key={variant.volumeMl}
                       type="button"
+                      data-motion-interactive
                       disabled={disabled}
                       onClick={() => { setSelectedVolumeMl(variant.volumeMl); setQuantity(1); }}
                       aria-pressed={Number(selectedVolumeMl) === Number(variant.volumeMl)}
@@ -308,6 +309,7 @@ export default function ProductDetails() {
 
             <button
               type="button"
+              data-motion-interactive
               onClick={handleAddToCart}
               disabled={isSoldOut || stockForSelectedVolume === 0}
               className={cn(

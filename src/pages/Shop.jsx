@@ -125,7 +125,7 @@ export default function Shop() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
       <div className="flex flex-col gap-1 border-b border-line pb-6">
-        <h1 className="font-display text-3xl font-extrabold tracking-tightest sm:text-4xl">
+        <h1 data-motion-reveal className="font-display text-3xl font-extrabold tracking-tightest sm:text-4xl">
           {t("shop.title")}
         </h1>
         <p className="text-sm text-slate">
@@ -147,6 +147,7 @@ export default function Shop() {
           <div className="mb-4 flex items-center justify-between gap-4">
             <button
               type="button"
+              data-motion-interactive
               onClick={() => setMobileFiltersOpen(true)}
               className="flex items-center gap-2 border border-line px-4 py-2.5 text-sm font-medium text-ink lg:hidden"
             >
@@ -155,7 +156,7 @@ export default function Shop() {
             </button>
             <div className="ms-auto flex items-center gap-2">
               <label htmlFor="sort" className="hidden text-xs text-slate sm:inline">{t("shop.sortBy")}</label>
-              <select id="sort" value={searchParams.get("sort") || "newest"} onChange={(event) => updateFilter("sort", event.target.value)} className="border border-line bg-paper px-3 py-2.5 text-sm text-ink focus:border-ink">
+              <select id="sort" data-motion-interactive value={searchParams.get("sort") || "newest"} onChange={(event) => updateFilter("sort", event.target.value)} className="border border-line bg-paper px-3 py-2.5 text-sm text-ink focus:border-ink">
                 <option value="newest">{t("shop.sortNewest")}</option>
                 <option value="price_asc">{t("shop.sortPriceLow")}</option>
                 <option value="price_desc">{t("shop.sortPriceHigh")}</option>
@@ -165,10 +166,10 @@ export default function Shop() {
           </div>
 
           {activeChips.length > 0 && <div className="mb-6 flex flex-wrap gap-2">
-            {activeChips.map((chip, index) => <button key={`${chip.key}-${chip.value}-${index}`} type="button" onClick={() => removeChip(chip)} className="inline-flex items-center gap-2 border border-line px-3 py-1.5 text-xs text-ink hover:border-ink">
+            {activeChips.map((chip, index) => <button key={`${chip.key}-${chip.value}-${index}`} type="button" data-motion-interactive onClick={() => removeChip(chip)} className="inline-flex items-center gap-2 border border-line px-3 py-1.5 text-xs text-ink hover:border-ink">
               <span>{t(filterLabels[chip.key])}: {chip.key === "inStock" ? t("shop.inStock") : chip.key === "gender" ? t(`shop.genderOptions.${chip.value}`) : chip.value}</span><X size={13} />
             </button>)}
-            <button type="button" onClick={clearFilters} className="px-2 py-1.5 text-xs text-slate underline">{t("shop.clearAll")}</button>
+            <button type="button" data-motion-interactive onClick={clearFilters} className="px-2 py-1.5 text-xs text-slate underline">{t("shop.clearAll")}</button>
           </div>}
 
           {loading ? (
@@ -192,7 +193,7 @@ export default function Shop() {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-2 gap-x-5 gap-y-10 sm:grid-cols-3">
+              <div className="grid grid-cols-2 gap-x-5 gap-y-10 sm:grid-cols-3" data-motion-stagger>
                 {products.map((product) => (
                   <ProductCard key={product.id || product._id} product={product} />
                 ))}

@@ -6,6 +6,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Discover distinctive perfumes, explore fragrance families, and find your next signature scent." />
     <title>DEJA FRAGRANCES — Distinctive Perfumes</title>
+    <script>
+      (() => {
+        const html = document.documentElement;
+        html.classList.add("js");
+        try {
+          const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+          if (location.pathname === "/" && !reducedMotion && !sessionStorage.getItem("deja-splash-seen")) {
+            sessionStorage.setItem("deja-splash-seen", "true");
+            window.__dejaSplashStartedAt = performance.now();
+            html.classList.add("splash-active");
+          }
+        } catch {
+          // Storage can be unavailable in private browsing; skip the splash safely.
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
