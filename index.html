@@ -10,15 +10,10 @@
       (() => {
         const html = document.documentElement;
         html.classList.add("js");
-        try {
-          const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-          if (location.pathname === "/" && !reducedMotion && !sessionStorage.getItem("deja-splash-seen")) {
-            sessionStorage.setItem("deja-splash-seen", "true");
-            window.__dejaSplashStartedAt = performance.now();
-            html.classList.add("splash-active");
-          }
-        } catch {
-          // Storage can be unavailable in private browsing; skip the splash safely.
+        const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+        if (location.pathname === "/" && !reducedMotion) {
+          window.__dejaSplashStartedAt = performance.now();
+          html.classList.add("splash-active");
         }
       })();
     </script>
