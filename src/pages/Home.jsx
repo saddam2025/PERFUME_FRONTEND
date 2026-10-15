@@ -20,7 +20,7 @@ export default function Home() {
     if (!splashVisible) return undefined;
     const html = document.documentElement;
     const readDuration = (property, fallback) => parseFloat(getComputedStyle(html).getPropertyValue(property)) || fallback;
-    const startedAt = window.__dejaSplashStartedAt ?? performance.now();
+    const startedAt = performance.now();
     const minimum = readDuration("--motion-splash-min", 1200);
     const maximum = readDuration("--motion-splash-max", 3000);
     const fade = readDuration("--motion-splash-fade", 280);
