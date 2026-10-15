@@ -10,7 +10,7 @@
   --motion-logo-start-scale: 0.96;
   --motion-active-scale: 0.98;
   --motion-card-lift: -3px;
-  --motion-splash-min: 1200ms;
+  --motion-splash-min: 2720ms;
   --motion-splash-max: 3000ms;
   --motion-splash-fade: 280ms;
   --motion-splash-failsafe: 4s;
