@@ -11,18 +11,30 @@ export function initAnimations() {
   }
 
   html.classList.toggle("motion-public", isPublicPage());
-  if (!("IntersectionObserver" in window)) return;
-
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach((entry) => {
-      if (!entry.isIntersecting) return;
-      observer.unobserve(entry.target);
-      reveal(entry.target, getDelay(entry.target));
-    });
-  }, { threshold: 0.12, rootMargin: "0px 0px -32px 0px" });
+  let observer = null;
+  if ("IntersectionObserver" in window) {
+    try {
+      observer = new IntersectionObserver((entries) => {
+        const visibleCards = entries
+          .filter((entry) => entry.isIntersecting && entry.target.hasAttribute("data-motion-card"))
+          .map((entry) => entry.target);
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          observer.unobserve(entry.target);
+          const grid = entry.target.closest("[data-motion-stagger]");
+          const batchIndex = entry.target.hasAttribute("data-motion-card")
+            ? visibleCards.filter((card) => card.closest("[data-motion-stagger]") === grid).indexOf(entry.target)
+            : undefined;
+          reveal(entry.target, getDelay(entry.target, batchIndex));
+        });
+      }, { threshold: 0.12, rootMargin: "0px 0px -32px 0px" });
+    } catch {
+      observer = null;
+    }
+  }
 
-  function getDelay(element) {
+  function getDelay(element, batchIndex) {
     const styles = getComputedStyle(html);
     const step = parseFloat(styles.getPropertyValue("--motion-stagger-step")) || 70;
     const limit = parseFloat(styles.getPropertyValue("--motion-stagger-limit")) || 500;
@@ -33,7 +45,8 @@ export function initAnimations() {
     const grid = element.closest("[data-motion-stagger]");
     if (!grid || !element.hasAttribute("data-motion-card")) return 0;
     const cards = [...grid.querySelectorAll("[data-motion-card]")];
-    return Math.min(Math.max(cards.indexOf(element), 0) * step, limit);
+    const index = Number.isInteger(batchIndex) && batchIndex >= 0 ? batchIndex : cards.indexOf(element);
+    return Math.min(Math.max(index, 0) * step, limit);
   }
 
   function reveal(element, delay = 0) {
@@ -57,16 +70,26 @@ export function initAnimations() {
     const elements = [];
     if (node instanceof Element && node.matches(revealSelector)) elements.push(node);
     if (node.querySelectorAll) elements.push(...node.querySelectorAll(revealSelector));
+    const visibleCards = elements.filter((element) => {
+      if (!element.hasAttribute("data-motion-card")) return false;
+      const rect = element.getBoundingClientRect();
+      return rect.bottom > 0 && rect.top < window.innerHeight;
+    });
     elements.forEach((element) => {
       if (element.dataset.motionReady) return;
       element.dataset.motionReady = "true";
       const rect = element.getBoundingClientRect();
       const inViewport = rect.bottom > 0 && rect.top < window.innerHeight;
-      if (inViewport || element.hasAttribute("data-motion-reveal")) {
-        reveal(element, getDelay(element));
+      const batchIndex = element.hasAttribute("data-motion-card") ? visibleCards.indexOf(element) : undefined;
+      if (inViewport || element.hasAttribute("data-motion-reveal") || !observer) {
+        reveal(element, getDelay(element, batchIndex));
       } else {
         element.classList.add("motion-pending");
-        observer.observe(element);
+        try {
+          observer.observe(element);
+        } catch {
+          reveal(element, getDelay(element, batchIndex));
+        }
       }
     });
   }

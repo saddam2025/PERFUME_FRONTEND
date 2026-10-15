@@ -96,11 +96,11 @@ html.motion-public .motion-enter[data-motion-kind="logo"] img {
     pointer-events: none;
   }
 
-  html.motion-public [data-motion-card]:hover {
+  html.motion-public [data-motion-card].motion-visible:hover {
     transform: translateY(var(--motion-card-lift));
   }
 
-  html.motion-public [data-motion-card]:hover::after {
+  html.motion-public [data-motion-card].motion-visible:hover::after {
     opacity: 1;
   }
 
