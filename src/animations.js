@@ -28,7 +28,7 @@ export function initAnimations() {
             : undefined;
           reveal(entry.target, getDelay(entry.target, batchIndex));
         });
-      }, { threshold: 0.12, rootMargin: "0px 0px -32px 0px" });
+      }, { threshold: 0, rootMargin: "0px" });
     } catch {
       observer = null;
     }
@@ -66,7 +66,7 @@ export function initAnimations() {
 
   function scan(node = root) {
     html.classList.toggle("motion-public", isPublicPage());
-    if (!isPublicPage() || html.classList.contains("splash-active")) return;
+    if (!isPublicPage()) return;
     const elements = [];
     if (node instanceof Element && node.matches(revealSelector)) elements.push(node);
     if (node.querySelectorAll) elements.push(...node.querySelectorAll(revealSelector));
