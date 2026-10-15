@@ -12,8 +12,11 @@
         html.classList.add("js");
         const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
         if (location.pathname === "/" && !reducedMotion) {
-          window.__dejaSplashStartedAt = performance.now();
-          html.classList.add("splash-active");
+          try {
+            if (!sessionStorage.getItem("deja-splash-seen")) html.classList.add("splash-active");
+          } catch {
+            html.classList.add("splash-active");
+          }
         }
       })();
     </script>

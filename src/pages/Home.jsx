@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, ArrowLeft, Users } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
@@ -6,6 +6,9 @@ import api from "../api/axios";
 import { mapApiProductToUiProduct } from "../lib/productHelpers";
 import ProductCard from "../components/product/ProductCard";
 import logo from "../assets/logo.png";
+
+const SPLASH_MIN_MS = 3000;
+const SPLASH_MAX_MS = 3500;
 
 export default function Home() {
   const { t, isRTL } = useLanguage();
@@ -15,49 +18,57 @@ export default function Home() {
   const [newArrivals, setNewArrivals] = useState([]);
   const [splashVisible, setSplashVisible] = useState(() => document.documentElement.classList.contains("splash-active"));
   const [splashLeaving, setSplashLeaving] = useState(false);
+  const splashStartedAtRef = useRef(null);
 
   useEffect(() => {
     if (!splashVisible) return undefined;
     const html = document.documentElement;
-    const readDuration = (property, fallback) => parseFloat(getComputedStyle(html).getPropertyValue(property)) || fallback;
-    const startedAt = performance.now();
-    const minimum = readDuration("--motion-splash-min", 1200);
-    const maximum = readDuration("--motion-splash-max", 3000);
-    const fade = readDuration("--motion-splash-fade", 280);
-    const latestStart = startedAt + maximum - fade;
-    let readyTimer;
-    let maxTimer;
-    let fadeTimer;
+    if (splashStartedAtRef.current === null) splashStartedAtRef.current = performance.now();
+    const startedAt = splashStartedAtRef.current;
+    const fade = parseFloat(getComputedStyle(html).getPropertyValue("--motion-splash-fade")) || 280;
+    const latestHideAt = startedAt + Math.max(SPLASH_MIN_MS, SPLASH_MAX_MS - fade);
+    let hideTimer;
     let leaving = false;
 
     const dismiss = () => {
       if (leaving) return;
       leaving = true;
-      window.clearTimeout(readyTimer);
-      window.clearTimeout(maxTimer);
       setSplashLeaving(true);
-      fadeTimer = window.setTimeout(() => {
-        setSplashVisible(false);
-        html.classList.remove("splash-active");
-        document.dispatchEvent(new Event("deja:splash-ended"));
-      }, fade);
+    };
+    let pageReadyAt = document.readyState === "complete" ? startedAt : null;
+    const scheduleHide = () => {
+      const elapsed = performance.now() - startedAt;
+      const targetElapsed = pageReadyAt === null
+        ? latestHideAt - startedAt
+        : Math.min(Math.max(SPLASH_MIN_MS, pageReadyAt - startedAt), latestHideAt - startedAt);
+      window.clearTimeout(hideTimer);
+      hideTimer = window.setTimeout(dismiss, Math.max(0, targetElapsed - elapsed));
     };
     const onReady = () => {
-      const hideAt = Math.min(Math.max(performance.now(), startedAt + minimum), latestStart);
-      readyTimer = window.setTimeout(dismiss, Math.max(0, hideAt - performance.now()));
+      pageReadyAt = performance.now();
+      scheduleHide();
     };
 
-    maxTimer = window.setTimeout(dismiss, Math.max(0, latestStart - performance.now()));
-    if (document.readyState === "complete") onReady();
-    else window.addEventListener("load", onReady, { once: true });
+    scheduleHide();
+    if (pageReadyAt === null) window.addEventListener("load", onReady, { once: true });
 
     return () => {
-      window.clearTimeout(readyTimer);
-      window.clearTimeout(maxTimer);
-      window.clearTimeout(fadeTimer);
+      window.clearTimeout(hideTimer);
       window.removeEventListener("load", onReady);
     };
   }, [splashVisible]);
+
+  const finishSplash = (event) => {
+    if (event.target !== event.currentTarget || event.propertyName !== "opacity") return;
+    setSplashVisible(false);
+    document.documentElement.classList.remove("splash-active");
+    try {
+      sessionStorage.setItem("deja-splash-seen", "true");
+    } catch {
+      // Storage can be unavailable; keep the splash behavior graceful.
+    }
+    document.dispatchEvent(new Event("deja:splash-ended"));
+  };
 
   // One unique representative product per category, fetched live.
   useEffect(() => {
@@ -89,7 +100,7 @@ export default function Home() {
 
   return (
     <>
-      {splashVisible && <div className={`site-splash${splashLeaving ? " is-leaving" : ""}`} aria-hidden="true">
+      {splashVisible && <div className={`site-splash${splashLeaving ? " is-leaving" : ""}`} onTransitionEnd={finishSplash} aria-hidden="true">
         <div className="site-splash-content">
           <img src={logo} alt="" className="site-splash-logo" />
           <span className="site-splash-loader" />
