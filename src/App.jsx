@@ -22,6 +22,7 @@ import ManagerDashboard from "./pages/ManagerDashboard";
 import ManagerAnalytics from "./pages/ManagerAnalytics";
 import UserProfile from "./pages/UserProfile";
 import Promotions from "./pages/Promotions";
+import LandingPageManagement from "./pages/LandingPageManagement";
 
 function App() {
   return (
@@ -41,6 +42,7 @@ function App() {
                 <Route path="/affiliate/dashboard" element={<AffiliateDashboard />} />
                 <Route path="/admin" element={<ManagerDashboard />} />
                 <Route path="/admin/promotions" element={<Promotions />} />
+                <Route path="/admin/landing-page" element={<LandingPageManagement />} />
                 <Route path="/admin/analytics" element={<ManagerAnalytics />} />
                 <Route path="/profile" element={<UserProfile />} />
                 <Route path="/collections" element={<Collections />} />

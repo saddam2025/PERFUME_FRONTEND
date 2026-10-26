@@ -12,18 +12,20 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
     if (typeof window === "undefined") return null;
     const stored = localStorage.getItem(USER_STORAGE_KEY);
-    return stored ? JSON.parse(stored) : null;
+    try { return stored ? JSON.parse(stored) : null; } catch { return null; }
   });
   const [token, setToken] = useState(() => {
     if (typeof window === "undefined") return null;
     return localStorage.getItem(TOKEN_STORAGE_KEY);
   });
+  const [isAuthReady, setIsAuthReady] = useState(() => typeof window === "undefined" || !localStorage.getItem(TOKEN_STORAGE_KEY));
 
   const login = (nextToken, nextUser) => {
     localStorage.setItem(TOKEN_STORAGE_KEY, nextToken);
     localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(nextUser));
     setToken(nextToken);
     setUser(nextUser);
+    setIsAuthReady(true);
   };
 
   const logout = () => {
@@ -31,6 +33,7 @@ export function AuthProvider({ children }) {
     localStorage.removeItem(USER_STORAGE_KEY);
     setToken(null);
     setUser(null);
+    setIsAuthReady(true);
   };
 
   // FIX: fetches the real current user (name/email/role/status) from the
@@ -43,6 +46,7 @@ export function AuthProvider({ children }) {
     if (!token) return;
     try {
       const { data } = await api.get("/auth/me");
+      if (localStorage.getItem(TOKEN_STORAGE_KEY) !== token) return;
       if (data?.user) {
         localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(data.user));
         setUser(data.user);
@@ -51,6 +55,17 @@ export function AuthProvider({ children }) {
       // If the token itself is invalid/expired, axios's interceptor
       // already handles clearing it on the relevant 401 cases — nothing
       // extra to do here.
+      const message = error.response?.data?.message || "";
+      const invalidToken = error.response?.status === 401 && (
+        message.includes("expired") || message.includes("Invalid token") ||
+        message.includes("no longer exists") || message.includes("No token provided")
+      );
+      if (invalidToken && localStorage.getItem(TOKEN_STORAGE_KEY) === token) {
+        localStorage.removeItem(TOKEN_STORAGE_KEY);
+        localStorage.removeItem(USER_STORAGE_KEY);
+        setToken(null);
+        setUser(null);
+      }
       console.error("Failed to refresh user:", error);
     }
   }, [token]);
@@ -67,15 +82,19 @@ export function AuthProvider({ children }) {
   const location = useLocation();
 
   useEffect(() => {
-    refreshUser();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, location.pathname]);
+    let active = true;
+    refreshUser().finally(() => {
+      if (active) setIsAuthReady(true);
+    });
+    return () => { active = false; };
+  }, [token, location.pathname, refreshUser]);
 
   const value = {
     user,
     token,
     role: user?.role ?? null,
     isAuthenticated: Boolean(token),
+    isAuthReady,
     login,
     logout,
     refreshUser,

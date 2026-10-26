@@ -2,6 +2,11 @@
 export const translations = {
   en: {
     navbar: {
+      joinAffiliate: "Join as Partner",
+      home: "Home",
+      cart: "Cart",
+      dashboardShort: "Dashboard",
+      affiliateDashboardShort: "Partner",
       shop: "Shop",
       collections: "Fragrance Families",
       about: "About",
@@ -32,7 +37,7 @@ export const translations = {
     },
     home: {
       shopByGender: "Shop by Gender",
-      shopByFamily: "Shop by Fragrance Family",
+      shopByFamily: "Shop by Fragrance Type",
       newArrivals: "New Arrivals",
       woody: "Woody", floral: "Floral", oriental: "Oriental", fresh: "Fresh",
       citrus: "Citrus", gourmand: "Gourmand", musky: "Musky", aromatic: "Aromatic",
@@ -482,6 +487,11 @@ export const translations = {
   },
   ar: {
     navbar: {
+      joinAffiliate: "انضم كمسوق",
+      home: "الرئيسية",
+      cart: "السلة",
+      dashboardShort: "لوحة التحكم",
+      affiliateDashboardShort: "مسوق",
       shop: "المتجر",
       collections: "المجموعات",
       about: "من نحن",
@@ -512,10 +522,10 @@ export const translations = {
     },
     home: {
       shopByGender: "تسوق حسب الفئة",
-      shopByFamily: "تسوق حسب العائلة العطرية",
+      shopByFamily: "نوع البرفيوم",
       newArrivals: "وصل حديثًا",
       woody: "خشبي", floral: "زهري", oriental: "شرقي", fresh: "منعش",
-      citrus: "حمضي", gourmand: "حلو", musky: "مسكي", aromatic: "عطري",
+      citrus: "حمضي", gourmand: "غورماند", musky: "مسكي", aromatic: "عشبي عطري",
     },
     product: {
       addToCart: "أضف إلى السلة",
@@ -876,7 +886,7 @@ export const translations = {
       currency: "ج.م",
     },
     auth: {
-      signInTitle: "تسجيل دخول",
+      signInTitle: "تسجيل الدخول",
       signInBody: "قم بتسجيل الدخول للوصول إلى لوحة التحكم والأسعار المخصصة والطلبات.",
       signInButton: "تسجيل الدخول",
       signUpTitle: "إنشاء حساب جديد",

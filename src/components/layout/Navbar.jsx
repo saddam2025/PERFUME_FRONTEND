@@ -1,6 +1,6 @@
 // Navbar.jsx
 import { useEffect, useRef, useState } from "react";
-import { Link, NavLink, useNavigate } from "react-router-dom";
+import { Link, NavLink, useNavigate, useLocation } from "react-router-dom";
 import { User, LayoutDashboard, ShoppingBag, Menu, X, Globe, LogOut, Search } from "lucide-react";
 import { useLanguage } from "../../context/LanguageContext";
 import { useCart } from "../../context/CartContext";
@@ -8,37 +8,19 @@ import { useAuth } from "../../context/AuthContext";
 import { cn } from "../../lib/cn";
 import logo from "../../assets/logo.png";
 import api from "../../api/axios";
+import { getSecondaryLink } from "../../lib/navigation";
 
-function getSecondaryLink(role, t) {
-  const normalizedRole = (role || "").toLowerCase();
-
-  if (normalizedRole === "admin" || normalizedRole === "manager") {
-    return {
-      to: "/admin",
-      label: t("navbar.dashboard"),
-    };
-  }
-
-  if (normalizedRole === "affiliate") {
-    return {
-      to: "/affiliate/dashboard",
-      label: t("navbar.affiliateDashboard"),
-    };
-  }
-  return null;
-}
-
-function NavLinks({ className, onLinkClick, compact = false }) {
+function NavLinks({ className, onLinkClick, compact = false, includeShop = true }) {
   const { t } = useLanguage();
   const links = [
     { to: "/shop",        label: t("navbar.shop") },
-    { to: "/shop?family=woody", label: t("navbar.collections") },
+    { to: "/collections", label: t("navbar.collections") },
     { to: "/about",       label: t("navbar.about") },
     { to: "/contact",     label: t("navbar.contact") },
   ];
   return (
     <nav className={className} data-motion-nav>
-      {links.map((link) => (
+      {links.filter((link) => includeShop || link.to !== "/shop").map((link) => (
         <NavLink
           key={link.to}
           to={link.to}
@@ -60,7 +42,8 @@ function NavLinks({ className, onLinkClick, compact = false }) {
 export default function Navbar() {
   const { t, locale, toggleLocale, isRTL } = useLanguage();
   const { itemCount } = useCart();
-  const { user, isAuthenticated, logout, role } = useAuth();
+  const { user, isAuthenticated, isAuthReady, logout, role } = useAuth();
+  const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [logoError, setLogoError]   = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -71,7 +54,19 @@ export default function Navbar() {
   const suggestionController = useRef(null);
   const navigate = useNavigate();
 
-  const secondaryLink = getSecondaryLink(role, t);
+  const secondaryLink = isAuthReady && isAuthenticated ? getSecondaryLink(role, t) : null;
+  const showAffiliateJoin = isAuthReady && (!isAuthenticated || (role !== "Manager" && role !== "Admin" && role !== "Affiliate"));
+  const isManagementRoute = location.pathname.startsWith("/admin") || location.pathname.startsWith("/affiliate/dashboard");
+
+  useEffect(() => {
+    const openSearch = () => setMobileSearchOpen(true);
+    window.addEventListener("deja:mobile-search", openSearch);
+    return () => window.removeEventListener("deja:mobile-search", openSearch);
+  }, []);
+
+  useEffect(() => {
+    if (mobileSearchOpen) searchRef.current?.querySelector("input")?.focus();
+  }, [mobileSearchOpen]);
 
   useEffect(() => {
     if (!mobileSearchOpen && window.matchMedia("(max-width: 1023px)").matches) return undefined;
@@ -133,7 +128,7 @@ export default function Navbar() {
       dir={isRTL ? "rtl" : "ltr"}
       className="sticky top-0 z-50 border-b border-line bg-paper/95 backdrop-blur-sm"
     >
-      <div className="mx-auto flex h-16 min-w-0 max-w-7xl items-center gap-2 px-3 sm:gap-3 sm:px-6 lg:px-8">
+      <div className="mx-auto flex h-16 min-w-0 max-w-screen-2xl items-center gap-2 px-4 sm:gap-4 sm:px-8 xl:px-10">
         <button
           type="button"
           className="flex h-9 w-9 shrink-0 items-center justify-center text-ink lg:hidden"
@@ -163,13 +158,14 @@ export default function Navbar() {
         <NavLinks compact className="hidden min-w-0 flex-1 items-center justify-center gap-6 lg:flex" />
 
         <div className="ms-auto flex shrink-0 items-center gap-1.5 lg:ms-0 lg:gap-3">
+          {showAffiliateJoin && <Link to="/affiliate/join" className="inline-flex max-w-[5.5rem] truncate whitespace-nowrap text-[10px] font-semibold text-slate transition-colors hover:text-ink sm:max-w-none sm:text-xs">{t("navbar.joinAffiliate")}</Link>}
           {secondaryLink && (
             <Link to={secondaryLink.to} className="hidden items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate transition-colors hover:text-ink lg:flex">
               <LayoutDashboard size={16} strokeWidth={1.75} />
               <span>{secondaryLink.label}</span>
             </Link>
           )}
-          {!isAuthenticated ? (
+          {isAuthReady && !isAuthenticated ? (
             <>
               <Link to="/login" className="hidden items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate transition-colors hover:text-ink lg:flex" aria-label="Account">
                 <User size={16} strokeWidth={1.75} />{t("auth.signInTitle") || "Sign In"}
@@ -178,7 +174,7 @@ export default function Navbar() {
                 {t("auth.signUpTitle") || "Register"}
               </Link>
             </>
-          ) : (
+          ) : isAuthReady ? (
             <>
               <Link to="/profile" className="hidden min-w-0 items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-ink transition-colors hover:text-slate lg:flex" aria-label="Profile">
                 <User size={16} strokeWidth={1.75} />
@@ -189,7 +185,7 @@ export default function Navbar() {
                 <span>{t("auth.logout") || "Logout"}</span>
               </button>
             </>
-          )}
+          ) : null}
 
           <button
             type="button"
@@ -201,15 +197,15 @@ export default function Navbar() {
             <span>{locale === "en" ? "AR" : "EN"}</span>
           </button>
 
-          <button type="button" onClick={() => setMobileSearchOpen((open) => !open)} className="order-2 flex h-9 w-9 shrink-0 items-center justify-center text-ink lg:hidden" aria-label={t("navbar.search")} aria-expanded={mobileSearchOpen}>
+          {isManagementRoute && <button type="button" onClick={() => setMobileSearchOpen((open) => !open)} className="order-2 flex h-9 w-9 shrink-0 items-center justify-center text-ink lg:hidden" aria-label={t("navbar.search")} aria-expanded={mobileSearchOpen}>
             {mobileSearchOpen ? <X size={19} /> : <Search size={19} />}
-          </button>
+          </button>}
 
-          <form ref={searchRef} onSubmit={submitSearch} className={cn("relative min-w-0 lg:order-2", mobileSearchOpen ? "absolute inset-x-4 top-full z-50 block bg-paper py-3 lg:static lg:block lg:bg-transparent lg:py-0" : "hidden lg:block")}>
+          <form ref={searchRef} onSubmit={submitSearch} className={cn("min-w-0 lg:order-2", mobileSearchOpen ? "mobile-search-panel absolute top-[calc(100%+0.5rem)] z-50 block lg:static lg:inset-auto lg:top-auto lg:z-auto" : "relative hidden lg:block")}>
             <label className="sr-only" htmlFor="navbar-search">{t("navbar.search")}</label>
-            <div className="flex items-center border border-line bg-paper">
-              <Search className="ms-3 shrink-0 text-slate" size={16} />
-              <input id="navbar-search" value={searchTerm} onChange={(event) => { const nextTerm = event.target.value; setSearchTerm(nextTerm); setSuggestionsOpen(true); if (nextTerm.trim().length < 2) setSuggestions([]); }} onFocus={() => { if (suggestions.length) setSuggestionsOpen(true); }} placeholder={t("navbar.searchPlaceholder")} className="w-full min-w-0 bg-transparent px-2 py-2 text-sm outline-none lg:w-32 xl:w-40" />
+            <div className="flex items-center rounded-md border border-line bg-paper px-1">
+              <Search className="ms-2 shrink-0 text-slate" size={15} />
+              <input id="navbar-search" value={searchTerm} onChange={(event) => { const nextTerm = event.target.value; setSearchTerm(nextTerm); setSuggestionsOpen(true); if (nextTerm.trim().length < 2) setSuggestions([]); }} onFocus={() => { if (suggestions.length) setSuggestionsOpen(true); }} placeholder={t("navbar.searchPlaceholder")} className="w-full min-w-0 bg-transparent px-2 py-2 text-xs outline-none lg:w-32 lg:text-sm xl:w-40" />
             </div>
             {suggestionsOpen && searchTerm.trim().length >= 2 && <div className="absolute start-0 top-full z-[60] mt-1 w-full min-w-64 border border-line bg-paper shadow-lg">
               {suggestions.length ? suggestions.map((suggestion) => <button key={suggestion._id} type="button" onClick={() => { setSuggestionsOpen(false); setMobileSearchOpen(false); navigate(`/product/${suggestion._id}`); }} className="flex w-full items-center gap-3 border-b border-line p-3 text-start last:border-b-0 hover:bg-paper-dim">
@@ -223,8 +219,8 @@ export default function Navbar() {
           <Link
             to="/cart"
             data-motion-interactive
-            className="order-1 relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-ink transition-colors hover:bg-paper-dim lg:order-3"
-            aria-label="Cart"
+            className={cn("order-1 relative h-9 w-9 shrink-0 items-center justify-center rounded-full text-ink transition-colors hover:bg-paper-dim lg:order-3", isManagementRoute ? "flex" : "hidden lg:flex")}
+            aria-label={t("navbar.cart")}
           >
             <ShoppingBag size={20} strokeWidth={1.75} />
             {itemCount > 0 && (
@@ -247,54 +243,20 @@ export default function Navbar() {
         <div className={cn("border-t border-line bg-paper lg:hidden", isRTL ? "text-right" : "text-left")}>
           <NavLinks
             className="flex flex-col gap-5 px-4 pt-6 sm:px-6"
+            includeShop={false}
             onLinkClick={() => setMobileOpen(false)}
           />
 
-          <div className="flex flex-col gap-4 border-t border-line mt-5 px-4 py-6 sm:px-6">
-
-            {/* Role-based secondary link (mobile) */}
-            {secondaryLink && <Link to={secondaryLink.to} onClick={() => setMobileOpen(false)} className="flex items-center gap-2.5 text-sm font-semibold uppercase tracking-wider text-slate hover:text-ink">
-              <LayoutDashboard size={18} strokeWidth={1.75} />{secondaryLink.label}
-            </Link>}
-
-            {/* Auth (mobile) */}
-            {!isAuthenticated ? (
-              <>
-                <Link
-                  to="/login"
-                  onClick={() => setMobileOpen(false)}
-                  className="flex items-center gap-2.5 text-sm font-semibold uppercase tracking-wider text-slate hover:text-ink"
-                >
-                  <User size={18} strokeWidth={1.75} />
-                  {t("auth.signInTitle") || "Sign In"}
-                </Link>
-                <Link
-                  to="/register"
-                  onClick={() => setMobileOpen(false)}
-                  className="flex items-center gap-2.5 text-sm font-semibold uppercase tracking-wider text-slate hover:text-ink"
-                >
-                  {t("auth.signUpTitle") || "Register"}
-                </Link>
-              </>
+          <div className="mt-5 flex flex-col gap-4 border-t border-line px-4 py-6 sm:px-6">
+            {isAuthReady && (isAuthenticated ? (
+              <button onClick={() => { logout(); setMobileOpen(false); }} className="flex items-center gap-2.5 text-sm font-semibold text-slate hover:text-red-500">
+                <LogOut size={18} strokeWidth={1.75} />{t("auth.logout")}
+              </button>
             ) : (
-              <>
-                <Link
-                  to="/profile"
-                  onClick={() => setMobileOpen(false)}
-                  className="flex items-center gap-2.5 text-sm font-semibold uppercase tracking-wider text-ink hover:text-slate"
-                >
-                  <User size={18} strokeWidth={1.75} />
-                  {user?.name || user?.firstName || t("navbar.profile")}
-                </Link>
-                <button
-                  onClick={() => { logout(); setMobileOpen(false); }}
-                  className="flex items-center gap-2.5 text-sm font-semibold uppercase tracking-wider text-slate hover:text-red-500 text-left"
-                >
-                  <LogOut size={18} strokeWidth={1.75} />
-                  {t("auth.logout") || "Logout"}
-                </button>
-              </>
-            )}
+              <Link to="/register" onClick={() => setMobileOpen(false)} className="flex items-center gap-2.5 text-sm font-semibold text-slate hover:text-ink">
+                <User size={18} strokeWidth={1.75} />{t("auth.signUpTitle")}
+              </Link>
+            ))}
           </div>
         </div>
       )}

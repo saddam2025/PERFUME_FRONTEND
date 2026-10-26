@@ -45,14 +45,14 @@ export default function ProductCard({ product }) {
   };
 
   return (
-    <div className="group flex flex-col" data-motion-card>
-      <Link to={`/product/${product._id || product.id}`} className="relative block aspect-[3/4] w-full overflow-hidden border border-line bg-paper flex items-center justify-center">
+    <div className="group flex flex-col bg-paper" data-motion-card>
+      <Link to={`/product/${product._id || product.id}`} className="relative block aspect-[4/5] w-full overflow-hidden border border-line bg-paper-dim flex items-center justify-center">
         {primaryImage ? (
           <img
             src={BASE_URL + primaryImage}
             alt={name}
             data-motion-image
-            className="h-full w-full object-cover"
+            className="h-full w-full object-contain p-3"
           />
         ) : (
           <ImageIcon className="text-line w-12 h-12" />
@@ -95,6 +95,7 @@ export default function ProductCard({ product }) {
           <h3 className="text-sm font-medium text-ink hover:text-slate">{name}</h3>
         </Link>
         {product.promotions?.[0] && <p className="mt-1 text-xs font-semibold text-accent-deep">{getPromotionHint(product.promotions[0], locale)}</p>}
+        {(locale === "ar" ? product.descriptionAr : product.descriptionEn) && <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-slate">{locale === "ar" ? product.descriptionAr : product.descriptionEn}</p>}
 
         <div className="mt-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-1">
           <span className="text-sm font-semibold text-ink">
